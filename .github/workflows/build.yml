@@ -1,0 +1,84 @@
+# Builds the Mac server and the phone app on every push; a tag v* also publishes them as a
+# release, which setup.sh downloads.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Tests
+        working-directory: server
+        run: cargo test
+      - name: Clippy
+        working-directory: server
+        run: cargo clippy --release --all-targets -- -D warnings
+      - name: Build for Apple silicon and Intel
+        working-directory: server
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+      - name: Package
+        run: |
+          dir=deskstats-server
+          mkdir -p "$dir/icon"
+          lipo -create -output "$dir/deskstats" \
+            server/target/aarch64-apple-darwin/release/deskstats \
+            server/target/x86_64-apple-darwin/release/deskstats
+          cp server/install.sh "$dir/"
+          cp server/icon/AppIcon.icns "$dir/icon/"
+          sed -n 's/^version = "\(.*\)"/\1/p' server/Cargo.toml | head -1 > "$dir/VERSION"
+          "$dir/deskstats" --check
+          tar -czf deskstats-server-macos.tar.gz "$dir"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deskstats-server-macos
+          path: deskstats-server-macos.tar.gz
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and lint
+        working-directory: android
+        run: ./gradlew --no-daemon :app:lintDebug :app:assembleRelease
+      - name: Rename
+        run: cp android/app/build/outputs/apk/release/app-release.apk deskstats.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deskstats-apk
+          path: deskstats.apk
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [server, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" deskstats-server-macos.tar.gz deskstats.apk \
+            --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes

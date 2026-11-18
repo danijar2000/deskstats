@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The panel talks plain HTTP to the server on the computer: localhost through adb reverse, or
+     a LAN address with the server option lan. Every request carries the server's token. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

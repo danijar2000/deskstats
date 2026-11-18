@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- The phone app's launcher icon (android/app/src/main/res/drawable/ic_launcher.xml) on the macOS icon grid. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1d24"/>
+      <stop offset="1" stop-color="#0b0c10"/>
+    </linearGradient>
+    <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" stroke="#262a32" stroke-width="6"/>
+  <path d="M212 660 L346 488 L461 584 L614 335 L710 488 L812 420 L812 800 L212 800 Z" fill="url(#area)"/>
+  <path d="M212 660 L346 488 L461 584 L614 335 L710 488 L812 420" fill="none" stroke="#2dd4bf" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
