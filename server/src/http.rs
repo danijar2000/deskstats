@@ -1,24 +1,7 @@
-//! A tiny HTTP/1.1 server for the phone.
-//!
-//! The phone asks `GET /q?<hex>`, over USB (adb reverse) and over Wi-Fi alike. The hex is a
-//! sealed text (see crypto.rs) `Q\n<nonce>\n<target>`, where the target is one of
-//!
-//!   /stats                      the latest sample (every poll)
-//!   /stats?place=<lat>,<lon>    with the weather of that place instead of the startup city
-//!   /stats?alerts=full          with the long list of notifications instead of the newest few
-//!   /procs?sort=cpu|ram|net|gpu the heaviest applications (only while the phone shows them)
-//!
-//! and the answer is the sealed text `A\n<nonce>\n<status>\n<json>`, padded with spaces to a
-//! multiple of a kilobyte. So the token never travels, a request that was not sealed with it
-//! does nothing at all, an old answer cannot be replayed (the nonce is the phone's), and an
-//! onlooker learns neither what is asked nor, from the size, when a notification arrived.
-//!
-//! For a look by hand, the same targets are served as plain JSON to this Mac only, with
-//! `Authorization: Bearer <token>`.
-
 use crate::crypto::Keys;
 use crate::procs::Tracker;
 use crate::util::{log, now_ms};
+use crate::settings::Settings;
 use crate::weather::Weather;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Shutdown, TcpListener, TcpStream};
@@ -28,23 +11,14 @@ use std::time::{Duration, Instant};
 
 const MAX_CONNECTIONS: usize = 16;
 const REQUEST_LIMIT: usize = 4096;
-/// A connection must prove itself with a first valid request within this time.
 const FIRST_REQUEST: Duration = Duration::from_secs(3);
-/// A started request must arrive whole within this time.
 const REQUEST_DEADLINE: Duration = Duration::from_secs(10);
-/// An idle keep-alive connection is closed after this time.
 const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
-/// Sealed answers grow in steps of this many bytes.
 const PAD: usize = 1024;
 
-/// The latest sample as JSON in pieces: the request decides which list of notifications and
-/// which weather complete it.
 pub struct Sample {
-    /// Everything up to the notifications, ending with a comma.
     pub head: String,
-    /// `"alerts":[…],` with the newest few, `"alerts":null,`, or nothing when they are off.
     pub alerts: String,
-    /// The same with the long list.
     pub alerts_full: String,
 }
 
@@ -57,37 +31,32 @@ impl Sample {
 struct Connection {
     id: u64,
     stream: TcpStream,
-    /// Set once the connection sent a request with the right token or seal.
     trusted: Arc<AtomicBool>,
     since: Instant,
 }
 
 pub struct Shared {
-    /// None until the first sample and while sampling is paused.
     pub sample: Mutex<Option<Sample>>,
     pub weather: Arc<Weather>,
-    /// Per-application load; empty unless the phone is looking at it.
+    pub settings: Arc<Settings>,
     pub procs: Tracker,
-    /// When the phone last asked for anything, over USB or Wi-Fi (ms since the epoch). The
-    /// sampler pauses and adb looks for a phone when this gets old.
     pub last_request_ms: AtomicU64,
-    /// The same for requests from this Mac, i.e. a phone on USB through adb reverse.
     pub last_local_ms: AtomicU64,
     pub token: String,
     pub keys: Keys,
     pub port: u16,
     connections: Mutex<Vec<Connection>>,
     next_id: AtomicU64,
-    /// This Mac's addresses on its own networks and when they were read.
     addresses: Mutex<(Option<Instant>, Vec<Ipv4Addr>)>,
 }
 
 impl Shared {
-    pub fn new(token: String, port: u16, weather: Arc<Weather>) -> Self {
+    pub fn new(token: String, port: u16, weather: Arc<Weather>, settings: Arc<Settings>) -> Self {
         let keys = Keys::from_token(&token);
         Shared {
             sample: Mutex::new(None),
             weather,
+            settings,
             procs: Tracker::default(),
             last_request_ms: AtomicU64::new(0),
             last_local_ms: AtomicU64::new(0),
@@ -100,13 +69,13 @@ impl Shared {
         }
     }
 
-    /// With --lan the socket listens on every interface, but only connections that came in
-    /// through this Mac's own networks (en*, where the beacon goes) are served — not a VPN,
-    /// a phone's hotspot or the like.
     fn arrived_on_own_network(&self, stream: &TcpStream) -> bool {
         let Ok(IpAddr::V4(to)) = stream.local_addr().map(|a| a.ip()) else { return false };
         if to.is_loopback() {
             return true;
+        }
+        if !self.settings.lan.load(Ordering::Relaxed) {
+            return false;
         }
         let mut cache = self.addresses.lock().unwrap_or_else(|e| e.into_inner());
         let stale = cache.0.is_none_or(|t| t.elapsed() >= Duration::from_secs(1));
@@ -116,9 +85,6 @@ impl Shared {
         cache.1.contains(&to)
     }
 
-    /// Makes room for one more connection; false when all are busy with a known phone. A
-    /// connection that has not proved itself yet gives way first, so idle strangers cannot
-    /// keep the panel out.
     fn admit(&self, stream: &TcpStream) -> Option<(u64, Arc<AtomicBool>)> {
         let mut list = self.connections.lock().unwrap_or_else(|e| e.into_inner());
         if list.len() >= MAX_CONNECTIONS {
@@ -139,9 +105,7 @@ impl Shared {
 pub struct Reply {
     pub status: &'static str,
     pub body: Vec<u8>,
-    /// The body is sealed rather than plain JSON.
     pub sealed: bool,
-    /// The request carried the right token or seal.
     pub trusted: bool,
 }
 
@@ -179,11 +143,9 @@ pub struct Request<'a> {
     pub host: Option<&'a str>,
     pub origin: bool,
     pub authorization: Option<&'a str>,
-    /// The request announces a body, which this server never reads.
     pub body: bool,
 }
 
-/// Parses the request head (everything before the blank line).
 pub fn parse(head: &[u8]) -> Option<Request<'_>> {
     let text = std::str::from_utf8(head).ok()?;
     let mut lines = text.split("\r\n");
@@ -208,14 +170,12 @@ pub fn parse(head: &[u8]) -> Option<Request<'_>> {
     Some(request)
 }
 
-/// The token from `Authorization: Bearer <token>` (the scheme in any letter case).
 fn token_of<'a>(request: &Request<'a>) -> Option<&'a str> {
     let value = request.authorization?;
     let (scheme, token) = value.split_once(' ')?;
     scheme.eq_ignore_ascii_case("bearer").then(|| token.trim())
 }
 
-/// The value of a query parameter, as sent (the phone sends nothing that needs decoding).
 pub fn param<'a>(query: &'a str, name: &str) -> Option<&'a str> {
     query.split('&').filter_map(|pair| pair.split_once('=')).find(|(key, _)| *key == name).map(|(_, value)| value)
 }
@@ -224,9 +184,14 @@ fn error_json(text: &str) -> String {
     format!("{{\"error\":\"{text}\"}}")
 }
 
-/// What an authorised request for `target` gets: a status code and JSON.
 fn answer(target: &str, shared: &Shared, local: bool) -> (u16, String) {
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
+    if path == "/config" {
+        shared.settings.apply(query);
+        shared.settings.save();
+        shared.weather.set_every(Duration::from_secs(shared.settings.weather_min.load(Ordering::Relaxed) * 60));
+        return (200, shared.settings.json());
+    }
     if path != "/stats" && path != "/procs" {
         return (404, error_json("not found"));
     }
@@ -234,8 +199,6 @@ fn answer(target: &str, shared: &Shared, local: bool) -> (u16, String) {
     if local {
         shared.last_local_ms.store(now_ms(), Ordering::Relaxed);
     }
-    // While the Mac is about to sleep or the server stops, the sampler may not run any more:
-    // answer the news right here, and tell the power side that the phone got it.
     let json = if crate::power::state() == "sleep" {
         Some(String::from("{\"mac\":\"sleep\"}"))
     } else if path == "/procs" {
@@ -243,23 +206,19 @@ fn answer(target: &str, shared: &Shared, local: bool) -> (u16, String) {
     } else {
         let sample = shared.sample.lock().unwrap_or_else(|e| e.into_inner());
         sample.as_ref().map(|sample| {
-            // A place that cannot be read gets no weather, rather than another city's.
-            let weather = match param(query, "place") {
-                Some(place) => crate::weather::parse_place(place).map_or_else(|| String::from("null"), |(lat, lon)| shared.weather.place(lat, lon)),
-                None => shared.weather.city(),
-            };
+            let weather = param(query, "place")
+                .and_then(crate::weather::parse_place)
+                .map_or_else(|| String::from("null"), |(lat, lon)| shared.weather.place(lat, lon));
             sample.json(param(query, "alerts") == Some("full"), &weather)
         })
     };
     let Some(json) = json else {
-        // Before the first sample, and for a moment after sampling resumes.
         return (503, error_json("starting"));
     };
     crate::power::LAST_POLL_MS.store(now_ms(), Ordering::Relaxed);
     (200, json)
 }
 
-/// The nonce and target of a sealed request; None when it was not sealed with the token.
 fn unseal<'a>(query: &str, keys: &Keys, plain: &'a mut String) -> Option<(&'a str, &'a str)> {
     *plain = String::from_utf8(keys.open(&crate::crypto::unhex(query)?)?).ok()?;
     let (nonce, target) = plain.strip_prefix("Q\n")?.split_once('\n')?;
@@ -267,10 +226,8 @@ fn unseal<'a>(query: &str, keys: &Keys, plain: &'a mut String) -> Option<(&'a st
     valid.then_some((nonce, target))
 }
 
-/// The reply to one request; `local` is true for a connection from this Mac.
 pub fn respond(request: &Request, shared: &Shared, local: bool) -> Reply {
     let refuse = |status, text: &str| Reply { status, body: error_json(text).into_bytes(), sealed: false, trusted: false };
-    // A page in a browser always sends Origin on a cross-site fetch; this server has no browser clients.
     if request.origin {
         return refuse("403 Forbidden", "browser requests are not allowed");
     }
@@ -293,11 +250,9 @@ pub fn respond(request: &Request, shared: &Shared, local: bool) -> Reply {
             None => Reply { status: "500 Internal Server Error", body: error_json("cannot encrypt").into_bytes(), sealed: false, trusted: true },
         };
     }
-    // Plain JSON never leaves this Mac.
     if !local {
         return refuse("401 Unauthorized", "sealed requests only");
     }
-    // DNS rebinding: a foreign name pointed at 127.0.0.1 arrives with that name in Host.
     let allowed = [format!("127.0.0.1:{}", shared.port), format!("localhost:{}", shared.port)];
     if !request.host.is_some_and(|h| allowed.iter().any(|a| a.eq_ignore_ascii_case(h))) {
         return refuse("421 Misdirected Request", "unexpected host");
@@ -348,13 +303,11 @@ fn serve(mut stream: TcpStream, shared: &Shared, trusted: &AtomicBool) {
                 Some(request) => (respond(&request, shared, local), request.method == "HEAD"),
                 None => (Reply { status: "400 Bad Request", body: error_json("bad request").into_bytes(), sealed: false, trusted: false }, false),
             };
-            // Whoever sent something this server refuses is not kept on the line.
             let head = format!(
                 "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-store\r\n{}Connection: {}\r\n\r\n",
                 reply.status,
                 if reply.sealed { "application/octet-stream" } else { "application/json; charset=utf-8" },
                 reply.body.len(),
-                // Old Android HTTP stacks fail on a 401 that carries no challenge.
                 if reply.status.starts_with("401") { "WWW-Authenticate: Bearer\r\n" } else { "" },
                 if reply.trusted { "keep-alive" } else { "close" },
             );
@@ -389,8 +342,22 @@ mod tests {
     const AUTH: &str = "Authorization: Bearer 0123456789abcdef0123456789abcdef";
     const NONCE: &str = "00112233445566778899aabbccddeeff";
 
+    fn test_settings() -> Arc<Settings> {
+        let path = std::env::temp_dir().join(format!("deskstats-http-{}-{:?}", std::process::id(), std::thread::current().id()));
+        let _ = std::fs::remove_file(&path);
+        Arc::new(Settings::load(path.to_string_lossy().into_owned()))
+    }
+
+    #[test]
+    fn config_changes_and_returns_the_settings() {
+        let s = shared();
+        let reply = respond(&parse(sealed(&s, "/config?interval_ms=2000&lan=1").as_bytes()).unwrap(), &s, true);
+        assert_eq!(opened(&s, &reply.body), ("200".into(), r#"{"interval_ms":2000,"lan":true,"alerts":true,"weather_min":60}"#.into()));
+        let _ = std::fs::remove_file(s.settings.path());
+    }
+
     fn starting() -> Shared {
-        Shared::new(TOKEN.into(), 8787, Arc::new(Weather::new(Duration::from_secs(3600))))
+        Shared::new(TOKEN.into(), 8787, Arc::new(Weather::new(Duration::from_secs(3600))), test_settings())
     }
 
     fn shared() -> Shared {
@@ -404,12 +371,10 @@ mod tests {
         respond(&parse(head.as_bytes()).unwrap(), s, local).status
     }
 
-    /// The request line of a sealed request for `target`.
     fn sealed(s: &Shared, target: &str) -> String {
         format!("GET /q?{} HTTP/1.1\r\nHost: x", crate::crypto::hex(&s.keys.seal(format!("Q\n{NONCE}\n{target}").as_bytes()).unwrap()))
     }
 
-    /// The status and JSON inside a sealed answer; checks the nonce and the padding.
     fn opened(s: &Shared, body: &[u8]) -> (String, String) {
         assert_eq!(body.len() % 16, 0);
         let text = String::from_utf8(s.keys.open(body).unwrap()).unwrap();
@@ -433,7 +398,6 @@ mod tests {
         assert_eq!(ask(&format!("POST /stats HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{AUTH}"), &s, true), "405 Method Not Allowed");
         assert_eq!(ask(&format!("GET /stats HTTP/1.1\r\nHost: 127.0.0.1:8787\r\nContent-Length: 5\r\n{AUTH}"), &s, true), "400 Bad Request");
         assert_eq!(ask(&format!("GET /x HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{AUTH}"), &s, true), "404 Not Found");
-        // from the network even the right token gets nothing in the clear
         assert_eq!(ask(&format!("GET /stats HTTP/1.1\r\nHost: 192.168.1.5:8787\r\n{AUTH}"), &s, false), "401 Unauthorized");
         assert_eq!(ask(&format!("GET /procs HTTP/1.1\r\nHost: 192.168.1.5:8787\r\n{AUTH}"), &s, false), "401 Unauthorized");
     }
@@ -455,7 +419,7 @@ mod tests {
     #[test]
     fn what_is_not_sealed_with_the_token_does_nothing() {
         let s = shared();
-        let other = Shared::new("ffffffffffffffffffffffffffffffff".into(), 8787, Arc::new(Weather::new(Duration::from_secs(3600))));
+        let other = Shared::new("ffffffffffffffffffffffffffffffff".into(), 8787, Arc::new(Weather::new(Duration::from_secs(3600))), test_settings());
         for head in [sealed(&other, "/stats?place=1.00,2.00&alerts=full"), "GET /q?00 HTTP/1.1".into(), "GET /q HTTP/1.1".into(), "GET /stats?alerts=full HTTP/1.1".into()] {
             let reply = respond(&parse(head.as_bytes()).unwrap(), &s, false);
             assert_eq!((reply.status, reply.trusted), ("401 Unauthorized", false));
@@ -468,16 +432,13 @@ mod tests {
     fn places_and_parameters() {
         let s = shared();
         assert_eq!((param("place=42.87,74.59&alerts=full", "place"), param("place=1,2&alerts=full", "alerts"), param("a=1", "x")), (Some("42.87,74.59"), Some("full"), None));
-        // a place that cannot be read is not replaced by the startup city
-        s.weather.set_city("{\"city\":\"Bishkek\"}");
         let weather = |target: &str| opened(&s, &respond(&parse(sealed(&s, target).as_bytes()).unwrap(), &s, false).body).1;
-        assert!(weather("/stats").ends_with("\"weather\":{\"city\":\"Bishkek\"}}"));
+        assert!(weather("/stats").ends_with("\"weather\":null}"));
         assert!(weather("/stats?place=91,0").ends_with("\"weather\":null}"));
         assert!(weather("/stats?place=abc").ends_with("\"weather\":null}"));
         assert!(weather("/stats?place=42.87,74.59").ends_with("\"weather\":null}"));
     }
 
-    /// A server on a free local port.
     fn server() -> (Arc<Shared>, std::net::SocketAddr) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
@@ -487,7 +448,6 @@ mod tests {
         (s, address)
     }
 
-    /// Reads one answer: its status line and body.
     fn read_answer(stream: &mut TcpStream) -> (String, Vec<u8>) {
         let mut data = Vec::new();
         let mut byte = [0u8; 1];
@@ -507,7 +467,6 @@ mod tests {
         let (s, address) = server();
         let mut phone = TcpStream::connect(address).unwrap();
         phone.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-        // two requests on one connection, the second in two pieces
         for _ in 0..2 {
             let request = format!("{}\r\n\r\n", sealed(&s, "/stats"));
             let (first, second) = request.split_at(20);
@@ -517,13 +476,11 @@ mod tests {
             assert_eq!(status, "HTTP/1.1 200 OK");
             assert_eq!(opened(&s, &body).0, "200");
         }
-        // a request without the seal is answered once and the connection is closed
         let mut stranger = TcpStream::connect(address).unwrap();
         stranger.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         stranger.write_all(b"GET /q?00 HTTP/1.1\r\n\r\nGET /q?00 HTTP/1.1\r\n\r\n").unwrap();
         assert_eq!(read_answer(&mut stranger).0, "HTTP/1.1 401 Unauthorized");
         assert_eq!(stranger.read(&mut [0u8; 1]).unwrap_or(0), 0);
-        // a head that never ends
         let mut flood = TcpStream::connect(address).unwrap();
         flood.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         flood.write_all(&vec![b'a'; REQUEST_LIMIT]).unwrap();
@@ -539,12 +496,10 @@ mod tests {
         phone.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         phone.write_all(format!("{}\r\n\r\n", sealed(&s, "/stats")).as_bytes()).unwrap();
         assert_eq!(read_answer(&mut phone).0, "HTTP/1.1 200 OK");
-        // and a connection that says nothing is closed after a few seconds
         let last = idle.last_mut().unwrap();
         last.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
         assert_eq!(last.read(&mut [0u8; 1]).unwrap_or(0), 0);
         assert!(started.elapsed() < FIRST_REQUEST + Duration::from_secs(3));
-        // the phone's own connection stays
         phone.write_all(format!("{}\r\n\r\n", sealed(&s, "/stats")).as_bytes()).unwrap();
         assert_eq!(read_answer(&mut phone).0, "HTTP/1.1 200 OK");
     }

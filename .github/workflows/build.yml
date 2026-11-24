@@ -1,5 +1,3 @@
-# Builds the Mac server and the phone app on every push; a tag v* also publishes them as a
-# release, which setup.sh downloads.
 name: build
 
 on:
@@ -40,7 +38,7 @@ jobs:
           cp server/install.sh "$dir/"
           cp server/icon/AppIcon.icns "$dir/icon/"
           sed -n 's/^version = "\(.*\)"/\1/p' server/Cargo.toml | head -1 > "$dir/VERSION"
-          "$dir/deskstats" --check
+          lipo -info "$dir/deskstats"
           tar -czf deskstats-server-macos.tar.gz "$dir"
       - uses: actions/upload-artifact@v4
         with:

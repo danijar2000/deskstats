@@ -1,5 +1,3 @@
-//! Bindings to the macOS system libraries the server reads from, and CoreFoundation helpers.
-
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
 
 #[repr(C)]
@@ -62,13 +60,11 @@ pub const HOST_VM_INFO64_COUNT: u32 = (std::mem::size_of::<VmStatistics64>() / 4
 pub const PROCESSOR_CPU_LOAD_INFO: c_int = 2;
 pub const CF_UTF8: u32 = 0x0800_0100;
 pub const CF_NUMBER_SINT64: c_int = 4;
-/// kIORegistryIterateRecursively | kIORegistryIterateParents: look the property up on the ancestors too.
 pub const REGISTRY_SEARCH_PARENTS: u32 = 3;
 pub const SQLITE_OPEN_READONLY: c_int = 1;
 pub const SQLITE_ROW: c_int = 100;
 pub const SQLITE_DONE: c_int = 101;
 pub const AX_SUCCESS: i32 = 0;
-/// rusage_info_v2 is 20 64-bit words; ri_phys_footprint is the tenth.
 pub const RUSAGE_INFO_V2: c_int = 2;
 pub const RUSAGE_FOOTPRINT: usize = 9;
 
@@ -197,7 +193,6 @@ extern "C" {
     pub fn sqlite3_column_text(stmt: *mut c_void, col: c_int) -> *const c_char;
 }
 
-/// A CFString for a constant key; null if the text holds a NUL byte. The caller owns it.
 pub fn cf_string(s: &str) -> *const c_void {
     match CString::new(s) {
         Ok(c) => unsafe { CFStringCreateWithCString(std::ptr::null(), c.as_ptr(), CF_UTF8) },
@@ -205,10 +200,6 @@ pub fn cf_string(s: &str) -> *const c_void {
     }
 }
 
-/// Copies a CFString into a Rust string; None for null or any other type.
-///
-/// # Safety
-/// `s` must be null or a valid CoreFoundation object.
 pub unsafe fn cf_to_string(s: *const c_void) -> Option<String> {
     if s.is_null() || CFGetTypeID(s) != CFStringGetTypeID() {
         return None;
@@ -221,10 +212,6 @@ pub unsafe fn cf_to_string(s: *const c_void) -> Option<String> {
     CStr::from_bytes_until_nul(&buf).ok().map(|c| c.to_string_lossy().into_owned())
 }
 
-/// Reads a CFNumber as i64; None for null or any other type.
-///
-/// # Safety
-/// `value` must be null or a valid CoreFoundation object.
 pub unsafe fn cf_to_i64(value: *const c_void) -> Option<i64> {
     if value.is_null() || CFGetTypeID(value) != CFNumberGetTypeID() {
         return None;

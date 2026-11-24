@@ -1,25 +1,14 @@
-//! Notifications shown on this Mac, from two sources:
-//! - the Notification Center database, which holds the notifications of Mac apps
-//!   (needs Full Disk Access; macOS has no public API for other apps' notifications);
-//! - the Notification Center window itself, read through Accessibility, which also shows the
-//!   notifications forwarded from an iPhone — those are never written to the database.
-
 use crate::ffi::*;
 use crate::util::{json_escape, log, normalize, now_ms, truncate};
 use std::collections::HashMap;
 use std::cell::Cell;
 use std::ffi::{c_int, c_void, CStr, CString};
-use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
 use std::time::{Duration, Instant, SystemTime};
 
-/// How many notifications every answer carries, and how many the phone's detail page gets.
 pub const SHORT: usize = 6;
 pub const FULL: usize = 30;
 const TEXT_LIMIT: usize = 600;
-/// Notifications older than this are not served.
 const MAX_AGE_MS: u64 = 48 * 3600 * 1000;
-/// Seconds between 1970-01-01 and 2001-01-01, the epoch of the database timestamps.
 const MAC_EPOCH_OFFSET: f64 = 978_307_200.0;
 
 #[derive(Clone)]
@@ -49,8 +38,6 @@ impl Item {
         normalize(&format!("{}|{}|{}|{}", self.app, self.title, self.subtitle, self.body))
     }
 }
-
-// ---- Notification Center database -------------------------------------------------------
 
 type Stamp = (Option<SystemTime>, Option<SystemTime>);
 
@@ -86,9 +73,6 @@ impl Database {
         }
     }
 
-    /// The newest notifications, or None while the database cannot be read. It is queried again
-    /// only after one of its files changed; a failed read keeps the last good list and is retried
-    /// after 10 seconds.
     pub fn refresh(&mut self) -> Option<&[Item]> {
         let modified = |path: &str| std::fs::metadata(path).and_then(|m| m.modified()).ok();
         let stamp = (modified(&self.path), modified(&format!("{}-wal", self.path)));
@@ -152,7 +136,6 @@ impl Database {
             }
             sqlite3_finalize(stmt);
             sqlite3_close(db);
-            // A busy or broken step must not be cached as a complete (shorter) list.
             if rc != SQLITE_DONE {
                 return None;
             }
@@ -160,7 +143,6 @@ impl Database {
         Some(items)
     }
 
-    /// Title, subtitle and body from the binary property list a notification is stored as.
     unsafe fn texts(&self, blob: *const u8, len: c_int) -> (String, String, String) {
         let mut out = (String::new(), String::new(), String::new());
         if blob.is_null() || len <= 0 {
@@ -186,7 +168,6 @@ impl Database {
         out
     }
 
-    /// "com.tinyspeck.slackmacgap" -> "Slack": the name of the installed app, else the last id part.
     fn app_name(&mut self, bundle: &str) -> String {
         if let Some(name) = self.app_names.get(bundle) {
             return name.clone();
@@ -215,26 +196,15 @@ impl Database {
     }
 }
 
-// ---- Notification Center window (Accessibility) -------------------------------------------
-
-/// Ids of notifications seen on screen start here, above any database row id.
 const SCREEN_ID_BASE: u64 = 1 << 40;
 const SCREEN_HISTORY: usize = 20;
 const MAX_NODES: usize = 800;
 const MAX_DEPTH: usize = 16;
-/// One reading of the window may take this long; what it does not reach is not read at all.
 const WALK_DEADLINE: Duration = Duration::from_millis(200);
-/// A window with more elements than this is the open Notification Center, which is read less often.
 const BIG_WINDOW: usize = 150;
 const BIG_WINDOW_EVERY: Duration = Duration::from_secs(3);
-/// The Accessibility error of a process that does not answer in time.
 const AX_CANNOT_COMPLETE: i32 = -25204;
-const O_NOFOLLOW: i32 = 0x100;
-/// The element tree written by --ax-dump goes to its own file, never larger than this.
-const DUMP_LIMIT: u64 = 2 * 1024 * 1024;
 
-/// A notification seen on screen: its text key, kept so it is not built again on every
-/// reading, and when it was last there.
 struct Seen {
     item: Item,
     key: String,
@@ -242,7 +212,6 @@ struct Seen {
 }
 
 pub struct Screen {
-    dump: bool,
     prompted: bool,
     logged_untrusted: bool,
     trusted: bool,
@@ -251,14 +220,10 @@ pub struct Screen {
     pid_checked: Option<Instant>,
     next_id: u64,
     history: Vec<Seen>,
-    /// The notifications of `history`, rebuilt only when it changes.
     items: Vec<Item>,
     keys: AxKeys,
-    last_dump: String,
-    dumped: u64,
     timeout_set: bool,
     next_read: Option<Instant>,
-    /// The process stopped answering in the middle of a reading.
     stuck: Cell<bool>,
 }
 
@@ -270,16 +235,11 @@ struct AxKeys {
     value: *const c_void,
     description: *const c_void,
     identifier: *const c_void,
-    title: *const c_void,
 }
 
 impl Screen {
-    /// `dump` writes the element tree of the Notification Center windows when it changes, to
-    /// adjust the parser to a new macOS version. The tree holds notification texts, so it goes
-    /// to a file of its own that only the owner can read and that starts anew on each run.
-    pub fn new(dump: bool) -> Self {
+    pub fn new() -> Self {
         Screen {
-            dump,
             prompted: false,
             logged_untrusted: false,
             trusted: false,
@@ -289,7 +249,6 @@ impl Screen {
             next_id: SCREEN_ID_BASE,
             history: Vec::new(),
             items: Vec::new(),
-            dumped: 0,
             timeout_set: false,
             next_read: None,
             stuck: Cell::new(false),
@@ -301,13 +260,10 @@ impl Screen {
                 value: cf_string("AXValue"),
                 description: cf_string("AXDescription"),
                 identifier: cf_string("AXIdentifier"),
-                title: cf_string("AXTitle"),
             },
-            last_dump: String::new(),
         }
     }
 
-    /// Notifications seen on screen during the last 48 hours, newest first.
     pub fn refresh(&mut self) -> &[Item] {
         let now = now_ms();
         let before = self.history.len();
@@ -329,17 +285,13 @@ impl Screen {
         &self.items
     }
 
-    /// Adds a notification read from the screen to the history; false when it is already there.
     fn take(&mut self, item: Item, now: u64) -> bool {
-        // An old entry of the open Notification Center is not news.
         let age = now.saturating_sub(item.ts);
         if age >= MAX_AGE_MS {
             return false;
         }
         let key = item.key();
         if let Some(seen) = self.history.iter_mut().filter(|h| h.key == key).max_by_key(|h| h.item.ts) {
-            // The same text again is a new notification only if it had left the screen and is
-            // surely newer: a label like "2h ago" may be up to its own length off.
             let gone = now.saturating_sub(seen.on_screen_ms) > 10_000;
             let newer = item.ts.saturating_sub(age) > seen.item.ts + 60_000;
             if !(gone && newer) {
@@ -352,8 +304,6 @@ impl Screen {
         true
     }
 
-    /// Asks macOS once for the Accessibility permission (it shows its own dialog), then checks
-    /// every 30 seconds whether it was granted.
     fn ensure_trusted(&mut self) -> bool {
         if self.trusted {
             return true;
@@ -389,9 +339,6 @@ impl Screen {
         if self.trusted {
             log("notifications: Accessibility granted, reading the Notification Center window");
         } else if std::env::var_os(RESTARTED).is_none() && granted_to_a_fresh_process() {
-            // macOS keeps telling a running process the answer it got at its start. A fresh
-            // copy of this program sees the grant, so start over in place — once, in case the
-            // two answers differ for another reason.
             log("notifications: Accessibility was granted, restarting to pick it up");
             use std::os::unix::process::CommandExt;
             if let Ok(program) = std::env::current_exe() {
@@ -420,13 +367,10 @@ impl Screen {
     fn read(&mut self) -> Option<Vec<Item>> {
         let pid = self.pid?;
         let mut found = Vec::new();
-        let mut dump = String::new();
         let mut budget = MAX_NODES;
         self.stuck.set(false);
         unsafe {
             if !self.timeout_set {
-                // On the system-wide element the timeout applies to every element of this
-                // process; the default is several seconds per call.
                 self.timeout_set = true;
                 let system = AXUIElementCreateSystemWide();
                 if !system.is_null() {
@@ -443,7 +387,6 @@ impl Screen {
             let rc = AXUIElementCopyAttributeValue(app, self.keys.windows, &mut windows);
             CFRelease(app);
             if rc != AX_SUCCESS {
-                // The process restarted (new pid) or does not answer; look it up again later.
                 if !windows.is_null() {
                     CFRelease(windows);
                 }
@@ -454,46 +397,17 @@ impl Screen {
                 if CFGetTypeID(windows) == CFArrayGetTypeID() {
                     let deadline = Instant::now() + WALK_DEADLINE;
                     for i in 0..CFArrayGetCount(windows) {
-                        self.walk(CFArrayGetValueAtIndex(windows, i), 0, &mut budget, deadline, &mut found, &mut dump);
+                        self.walk(CFArrayGetValueAtIndex(windows, i), 0, &mut budget, deadline, &mut found);
                     }
                 }
                 CFRelease(windows);
             }
         }
-        // The open Notification Center is hundreds of elements; reading it every second would
-        // keep both this server and the Notification Center busy.
         self.next_read = (MAX_NODES - budget > BIG_WINDOW).then(|| Instant::now() + BIG_WINDOW_EVERY);
         if self.stuck.get() {
-            // Not answering: look the process up again later instead of asking it every second.
             self.pid = None;
         }
-        if self.dump && dump != self.last_dump {
-            self.write_dump(&dump);
-            self.last_dump = dump;
-        }
         Some(found)
-    }
-
-    fn write_dump(&mut self, dump: &str) {
-        if dump.is_empty() || self.dumped >= DUMP_LIMIT {
-            return;
-        }
-        let path = format!("{}/Library/Logs/deskstats-ax.log", std::env::var("HOME").unwrap_or_default());
-        let mut options = std::fs::OpenOptions::new();
-        // The first dump of a run makes a new file in place of whatever is there, a planted link
-        // included; the next ones are appended, never through a link.
-        if self.dumped == 0 {
-            let _ = std::fs::remove_file(&path);
-        }
-        options.write(true).mode(0o600).custom_flags(O_NOFOLLOW).create_new(self.dumped == 0).append(self.dumped > 0);
-        let Ok(mut file) = options.open(&path) else { return };
-        if self.dumped == 0 {
-            log(&format!("ax dump: writing the element tree to {path}"));
-        }
-        let text = format!("--- {}\n{dump}", now_ms());
-        if file.write_all(text.as_bytes()).is_ok() {
-            self.dumped += text.len() as u64;
-        }
     }
 
     unsafe fn attr(&self, element: *const c_void, key: *const c_void) -> *const c_void {
@@ -521,35 +435,21 @@ impl Screen {
         out
     }
 
-    unsafe fn walk(&self, element: *const c_void, depth: usize, budget: &mut usize, deadline: Instant, found: &mut Vec<Item>, dump: &mut String) {
+    unsafe fn walk(&self, element: *const c_void, depth: usize, budget: &mut usize, deadline: Instant, found: &mut Vec<Item>) {
         if *budget == 0 || depth > MAX_DEPTH || self.stuck.get() || Instant::now() >= deadline {
             return;
         }
         *budget -= 1;
         let role = self.attr_string(element, self.keys.role);
         let subrole = self.attr_string(element, self.keys.subrole);
-        if self.dump {
-            let short = |s: String| truncate(&s.replace('\n', " "), 60);
-            dump.push_str(&format!(
-                "{}{role}/{subrole} id={} title={} desc={} value={}\n",
-                "  ".repeat(depth),
-                short(self.attr_string(element, self.keys.identifier)),
-                short(self.attr_string(element, self.keys.title)),
-                short(self.attr_string(element, self.keys.description)),
-                short(self.attr_string(element, self.keys.value)),
-            ));
-        }
         let notification = subrole.starts_with("AXNotificationCenter") && role != "AXWindow";
         let children = self.attr(element, self.keys.children);
         if children.is_null() {
             return;
         }
         if CFGetTypeID(children) == CFArrayGetTypeID() {
-            // A banner, and a collapsed stack too, holds the texts of its (top) notification as
-            // direct children; the other notifications of an expanded stack are nested banners.
             let mut texts = Vec::new();
             for i in 0..CFArrayGetCount(children) {
-                // A process that stopped answering costs a quarter of a second per question.
                 if self.stuck.get() || Instant::now() >= deadline {
                     break;
                 }
@@ -562,7 +462,7 @@ impl Screen {
                     }
                     continue;
                 }
-                self.walk(child, depth + 1, budget, deadline, found, dump);
+                self.walk(child, depth + 1, budget, deadline, found);
             }
             if notification {
                 let description = self.attr_string(element, self.keys.description);
@@ -575,23 +475,17 @@ impl Screen {
     }
 }
 
-/// Set in the environment of a server that restarted itself for the Accessibility permission.
 const RESTARTED: &str = "DESKSTATS_AX_RESTARTED";
 
-/// Whether this process may use Accessibility, without asking the user (`--ax-check`).
 pub fn accessibility_granted() -> bool {
     unsafe { AXIsProcessTrustedWithOptions(std::ptr::null()) != 0 }
 }
 
-/// The same, asked by a new process of this program.
 fn granted_to_a_fresh_process() -> bool {
     let Ok(program) = std::env::current_exe() else { return false };
     crate::util::run(&program.to_string_lossy(), &["--ax-check"], Duration::from_secs(5)).is_some_and(|(_, out)| out.trim() == "yes")
 }
 
-/// How long ago a relative time label means, in milliseconds: "now", "8m ago", "2 ч назад"…
-/// None when the text is not such a label. Only whole known units count, so a line of the
-/// notification itself ("2 messages", "15 декабря") is not taken for a time.
 pub fn parse_age(text: &str) -> Option<u64> {
     let t = text.trim().to_lowercase();
     if matches!(t.as_str(), "now" | "сейчас" | "только что" | "just now") {
@@ -615,10 +509,6 @@ pub fn parse_age(text: &str) -> Option<u64> {
     n.checked_mul(unit)
 }
 
-/// A notification from the static texts of its on-screen element. macOS marks them with the
-/// identifiers title, subtitle and body; the app name is only in the element's description
-/// ("App, title, subtitle, body"). An unmarked relative time label ("29m ago") dates it; without
-/// one it counts as just arrived. Unmarked texts fall back to their order: heading, title, body.
 pub fn item_from_texts(texts: &[(String, String)], description: &str, now: u64) -> Option<Item> {
     let mut age = None;
     let (mut title, mut subtitle, mut body) = (String::new(), String::new(), Vec::new());
@@ -636,7 +526,6 @@ pub fn item_from_texts(texts: &[(String, String)], description: &str, now: u64) 
     }
     let ts = now.saturating_sub(age.unwrap_or(0));
     if title.is_empty() && subtitle.is_empty() && body.is_empty() {
-        // No identifiers (another macOS version): heading, title, then the rest as the body.
         let mut lines = loose.into_iter();
         let app = lines.next()?;
         let title = lines.next().unwrap_or_default();
@@ -645,8 +534,6 @@ pub fn item_from_texts(texts: &[(String, String)], description: &str, now: u64) 
     }
     body.extend(loose);
     let body = truncate(&body.join(" "), TEXT_LIMIT);
-    // The description starts with the app name, unless the title comes first (as for a
-    // notification forwarded from an iPhone, whose title is the app's name).
     let first = description.split(", ").next().unwrap_or("").trim().to_string();
     let app = if first.is_empty() || first == title || first == subtitle || body.starts_with(&first) {
         std::mem::take(&mut title)
@@ -656,17 +543,12 @@ pub fn item_from_texts(texts: &[(String, String)], description: &str, now: u64) 
     Some(Item { id: 0, ts, app, title, subtitle, body })
 }
 
-/// Database notifications plus those seen only on screen (the iPhone ones), newest first;
-/// none older than 48 hours, whatever the sources still hold.
 pub fn merge(database: &[Item], screen: &[Item], now: u64) -> Vec<Item> {
     let recent = |i: &&Item| now.saturating_sub(i.ts) < MAX_AGE_MS;
     let mut out: Vec<Item> = database.iter().filter(recent).cloned().collect();
     for s in screen.iter().filter(recent) {
         let text = normalize(&format!("{} {} {} {}", s.app, s.title, s.subtitle, s.body));
         let duplicate = database.iter().any(|d| {
-            // The screen copy holds every text of the database row, though not always in the
-            // same fields. A few matching characters ("OK") prove nothing, unless the two
-            // also arrived together.
             let mut matched = 0;
             let mut part = |x: &str| {
                 let head: String = normalize(x).chars().take(40).collect();
@@ -719,11 +601,10 @@ mod tests {
         assert_eq!(parse_age("8m ago"), Some(8 * 60_000));
         assert_eq!(parse_age("2 ч назад"), Some(2 * 3_600_000));
         assert_eq!(parse_age("19 мин."), Some(19 * 60_000));
-        assert_eq!(parse_age("Зачислено: 8.75 KGS"), None);
+        assert_eq!(parse_age("Credited: 8.75 KGS"), None);
         assert_eq!(parse_age("3689"), None);
         assert_eq!(parse_age("1 hr ago"), Some(3_600_000));
         assert_eq!(parse_age("3 нед. назад"), Some(3 * 7 * 24 * 3_600_000));
-        // lines of a notification, not time labels
         assert_eq!(parse_age("2 messages"), None);
         assert_eq!(parse_age("1 mo"), None);
         assert_eq!(parse_age("15 декабря"), None);
@@ -736,25 +617,25 @@ mod tests {
 
     #[test]
     fn iphone_notification_from_texts() {
-        let texts = t(&[("title", "MBANK"), ("body", "Зачислено: 8.75 KGS Карта: *3689"), ("", "29m ago")]);
-        let item = item_from_texts(&texts, "MBANK, Зачислено: 8.75 KGS Карта: *3689", 1_000_000_000).unwrap();
+        let texts = t(&[("title", "MBANK"), ("body", "Credited: 8.75 KGS Card: *3689"), ("", "29m ago")]);
+        let item = item_from_texts(&texts, "MBANK, Credited: 8.75 KGS Card: *3689", 1_000_000_000).unwrap();
         assert_eq!(item.app, "MBANK");
         assert_eq!(item.title, "");
-        assert_eq!(item.body, "Зачислено: 8.75 KGS Карта: *3689");
+        assert_eq!(item.body, "Credited: 8.75 KGS Card: *3689");
         assert_eq!(item.ts, 1_000_000_000 - 29 * 60_000);
     }
 
     #[test]
     fn mac_notification_takes_the_app_from_the_description() {
-        let texts = t(&[("title", "deskstats"), ("subtitle", "тест 2"), ("body", "Проверка")]);
-        let item = item_from_texts(&texts, "Script Editor, deskstats, тест 2, Проверка", 5).unwrap();
-        assert_eq!((item.app.as_str(), item.title.as_str(), item.subtitle.as_str(), item.body.as_str()), ("Script Editor", "deskstats", "тест 2", "Проверка"));
+        let texts = t(&[("title", "deskstats"), ("subtitle", "test 2"), ("body", "Check")]);
+        let item = item_from_texts(&texts, "Script Editor, deskstats, test 2, Check", 5).unwrap();
+        assert_eq!((item.app.as_str(), item.title.as_str(), item.subtitle.as_str(), item.body.as_str()), ("Script Editor", "deskstats", "test 2", "Check"));
     }
 
     #[test]
     fn unmarked_texts_fall_back_to_order() {
-        let item = item_from_texts(&t(&[("", "MBANK"), ("", "8m ago"), ("", "Зачислено"), ("", "Карта")]), "", 1_000_000).unwrap();
-        assert_eq!((item.app.as_str(), item.title.as_str(), item.body.as_str()), ("MBANK", "Зачислено", "Карта"));
+        let item = item_from_texts(&t(&[("", "MBANK"), ("", "8m ago"), ("", "Credited"), ("", "Card")]), "", 1_000_000).unwrap();
+        assert_eq!((item.app.as_str(), item.title.as_str(), item.body.as_str()), ("MBANK", "Credited", "Card"));
         assert_eq!(item.ts, 1_000_000 - 8 * 60_000);
         assert!(item_from_texts(&t(&[("", "now")]), "", 5).is_none());
     }
@@ -765,16 +646,16 @@ mod tests {
 
     #[test]
     fn merge_drops_screen_copies_of_database_rows() {
-        let db = item(7, 100, "Script Editor", "deskstats", "тест", "Проверка связи с панелью");
-        let copy = item(SCREEN_ID_BASE, 105, "deskstats", "тест", "", "Проверка связи с панелью");
-        let bank = item(SCREEN_ID_BASE + 1, 200, "MBANK", "Зачислено", "", "Карта");
+        let db = item(7, 100, "Script Editor", "deskstats", "test", "Checking the link to the panel");
+        let copy = item(SCREEN_ID_BASE, 105, "deskstats", "test", "", "Checking the link to the panel");
+        let bank = item(SCREEN_ID_BASE + 1, 200, "MBANK", "Credited", "", "Card");
         let merged = merge(&[db], &[copy, bank], 1000);
         assert_eq!(merged.iter().map(|i| i.id).collect::<Vec<_>>(), vec![SCREEN_ID_BASE + 1, 7]);
     }
 
     #[test]
     fn merge_drops_a_screen_copy_that_has_a_subtitle() {
-        let db = item(7, 100, "Mail", "Айгуль", "Счёт за ноябрь", "Добрый день");
+        let db = item(7, 100, "Mail", "Alice", "November invoice", "Good afternoon");
         let copy = Item { id: SCREEN_ID_BASE, ..db.clone() };
         assert_eq!(merge(&[db], &[copy], 1000).len(), 1);
     }
@@ -783,9 +664,8 @@ mod tests {
     fn a_short_database_title_does_not_hide_other_notifications() {
         let hour = 3_600_000;
         let db = item(7, hour, "Terminal", "OK", "", "");
-        let bank = item(SCREEN_ID_BASE, 2 * hour, "MBANK", "Зачислено", "", "Покупка OK, баланс 100");
+        let bank = item(SCREEN_ID_BASE, 2 * hour, "MBANK", "Credited", "", "Purchase OK, balance 100");
         assert_eq!(merge(std::slice::from_ref(&db), &[bank], 3 * hour).len(), 2);
-        // its own copy on screen, seen at the same time, is still one notification
         let copy = item(SCREEN_ID_BASE + 1, hour + 2000, "Terminal", "OK", "", "");
         assert_eq!(merge(&[db], &[copy], 3 * hour).len(), 1);
     }
@@ -793,9 +673,9 @@ mod tests {
     #[test]
     fn merge_leaves_out_what_is_older_than_two_days() {
         let now = 10 * MAX_AGE_MS;
-        let old = item(1, now - MAX_AGE_MS - 1, "Mail", "Старое письмо", "", "");
-        let fresh = item(2, now - 1000, "Mail", "Новое письмо", "", "");
-        let on_screen = item(SCREEN_ID_BASE, now - MAX_AGE_MS - 1, "MBANK", "Зачислено давно", "", "");
+        let old = item(1, now - MAX_AGE_MS - 1, "Mail", "Old letter", "", "");
+        let fresh = item(2, now - 1000, "Mail", "New letter", "", "");
+        let on_screen = item(SCREEN_ID_BASE, now - MAX_AGE_MS - 1, "MBANK", "Credited long ago", "", "");
         assert_eq!(merge(&[old, fresh], &[on_screen], now).iter().map(|i| i.id).collect::<Vec<_>>(), vec![2]);
     }
 
@@ -805,9 +685,8 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let (db, plist) = (dir.join("db"), dir.join("n.plist"));
         let run = |program: &str, args: &[&str]| assert!(std::process::Command::new(program).args(args).status().unwrap().success());
-        // A notification is stored as a binary property list with its texts under "req".
         let blob = |title: &str, body: &str| {
-            let xml = format!("<plist version=\"1.0\"><dict><key>req</key><dict><key>titl</key><string>{title}</string><key>subt</key><string>тема</string><key>body</key><string>{body}</string></dict></dict></plist>");
+            let xml = format!("<plist version=\"1.0\"><dict><key>req</key><dict><key>titl</key><string>{title}</string><key>subt</key><string>topic</string><key>body</key><string>{body}</string></dict></dict></plist>");
             std::fs::write(&plist, xml).unwrap();
             run("/usr/bin/plutil", &["-convert", "binary1", plist.to_str().unwrap()]);
             std::fs::read(&plist).unwrap().iter().map(|b| format!("{b:02x}")).collect::<String>()
@@ -818,40 +697,34 @@ mod tests {
              create table record (rec_id integer primary key, app_id integer, delivered_date real, data blob); \
              insert into app values (1, 'com.example.nosuchapp'); \
              insert into record values (10, 1, {}, x'{}'), (11, 1, {}, x'{}'), (12, 1, {}, x'{}'), (13, 1, {}, x'00');",
-            mac_time(60_000), blob("Первое", "раньше"),
-            mac_time(1000), blob("Второе", "позже"),
-            mac_time(MAX_AGE_MS + 60_000), blob("Старое", "давно"),
+            mac_time(60_000), blob("First", "earlier"),
+            mac_time(1000), blob("Second", "later"),
+            mac_time(MAX_AGE_MS + 60_000), blob("Old", "long ago"),
             mac_time(30_000),
         );
         run("/usr/bin/sqlite3", &[db.to_str().unwrap(), &sql]);
         let mut database = Database::at(db.to_string_lossy().into_owned());
         let rows = database.refresh().unwrap();
-        // newest first, the one older than two days left out, a broken blob read as empty texts
         assert_eq!(rows.iter().map(|i| i.id).collect::<Vec<_>>(), vec![11, 13, 10]);
-        assert_eq!((rows[0].app.as_str(), rows[0].title.as_str(), rows[0].subtitle.as_str(), rows[0].body.as_str()), ("nosuchapp", "Второе", "тема", "позже"));
+        assert_eq!((rows[0].app.as_str(), rows[0].title.as_str(), rows[0].subtitle.as_str(), rows[0].body.as_str()), ("nosuchapp", "Second", "topic", "later"));
         assert_eq!(rows[1].title, "");
         assert!(now_ms().abs_diff(rows[2].ts) < 120_000);
         std::fs::remove_dir_all(&dir).unwrap();
-        // a database that is not there: nothing, and no panic
         assert!(Database::at(dir.join("missing").to_string_lossy().into_owned()).refresh().is_none());
     }
 
     #[test]
     fn the_same_text_again_is_a_new_notification_only_when_surely_newer() {
-        let mut screen = Screen::new(false);
+        let mut screen = Screen::new();
         let hour = 3_600_000u64;
         let now = 100 * hour;
-        let call = |ts| item(0, ts, "Телефон", "Пропущенный вызов", "", "Айгуль");
+        let call = |ts| item(0, ts, "Phone", "Missed call", "", "Alice");
         assert!(screen.take(call(now), now));
-        // still on screen a few seconds later
         assert!(!screen.take(call(now + 3000), now + 3000));
-        // the open Notification Center shows it as "1h ago" when it is almost two hours old
         let later = now + 2 * hour - 60_000;
         assert!(!screen.take(call(later - hour), later));
-        // a banner with the same text much later is another call
         assert!(screen.take(call(later + hour), later + hour));
-        // an entry older than two days is not taken at all
-        assert!(!screen.take(item(0, now, "MBANK", "Старое", "", ""), now + MAX_AGE_MS));
+        assert!(!screen.take(item(0, now, "MBANK", "Old", "", ""), now + MAX_AGE_MS));
         assert_eq!(screen.history.len(), 2);
     }
 }

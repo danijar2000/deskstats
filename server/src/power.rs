@@ -1,11 +1,3 @@
-//! Whether the Mac is in use, so the phone can sleep and wake with it.
-//!
-//! - The display is asleep (lid closed, display sleep): reported as "display_off".
-//! - The system is about to sleep, or the server is being stopped at shutdown or logout
-//!   (SIGTERM from launchd): reported as "sleep". The server holds the sleep, or its exit, for
-//!   up to 3 seconds so the phone can pick that up on its next poll.
-//! - Otherwise "awake".
-
 use crate::util::log;
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
@@ -17,13 +9,11 @@ const MSG_SYSTEM_WILL_POWER_ON: u32 = 0xe000_0320;
 const MSG_SYSTEM_HAS_POWERED_ON: u32 = 0xe000_0300;
 const SIGTERM: i32 = 15;
 const SIGINT: i32 = 2;
-/// How long the Mac's sleep or the server's exit is held for the phone to notice.
 const GRACE: Duration = Duration::from_secs(3);
 
 static GOING_TO_SLEEP: AtomicBool = AtomicBool::new(false);
 static STOPPING: AtomicBool = AtomicBool::new(false);
 static ROOT_PORT: AtomicU32 = AtomicU32::new(0);
-/// Set by the HTTP side on every answered poll, to know when the phone has seen the news.
 pub static LAST_POLL_MS: AtomicU64 = AtomicU64::new(0);
 
 #[link(name = "IOKit", kind = "framework")]
@@ -57,11 +47,9 @@ extern "C" {
 }
 
 extern "C" fn on_signal(_: i32) {
-    // Only an atomic store: anything more is not safe inside a signal handler.
     STOPPING.store(true, Ordering::SeqCst);
 }
 
-/// "awake", "display_off" or "sleep".
 pub fn state() -> &'static str {
     if GOING_TO_SLEEP.load(Ordering::SeqCst) || STOPPING.load(Ordering::SeqCst) {
         "sleep"
@@ -76,8 +64,6 @@ pub fn stopping() -> bool {
     STOPPING.load(Ordering::SeqCst)
 }
 
-/// Waits until the phone polled after `since`, at most GRACE; not at all when no phone has been
-/// polling lately, so a Mac without the phone sleeps and stops without a delay.
 pub fn wait_for_poll(since: u64) {
     if since.saturating_sub(LAST_POLL_MS.load(Ordering::Relaxed)) > 5000 {
         return;
@@ -108,7 +94,6 @@ extern "C" fn on_power(_: *mut c_void, _: u32, message: u32, argument: *mut c_vo
     }
 }
 
-/// Catches SIGTERM/SIGINT and runs the sleep notifications on their own run loop thread.
 pub fn start() {
     unsafe {
         signal(SIGTERM, on_signal);

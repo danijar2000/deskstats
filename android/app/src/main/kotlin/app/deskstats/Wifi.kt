@@ -10,16 +10,10 @@ import javax.crypto.Mac
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-/**
- * Keys shared with the server, derived from the token the phone got over USB. The token itself
- * is never sent: both sides seal what they say with these keys, as
- * IV (16) | AES-256-CBC ciphertext | HMAC-SHA256 of IV and ciphertext.
- */
 class Keys(token: String) {
     private val enc = hmac(token.toByteArray(Charsets.UTF_8), "deskstats-enc".toByteArray(Charsets.UTF_8))
     private val mac = hmac(token.toByteArray(Charsets.UTF_8), "deskstats-mac".toByteArray(Charsets.UTF_8))
 
-    /** The plain text of a sealed answer, or null when it was not sealed with these keys. */
     fun open(sealed: ByteArray): String? {
         if (sealed.size < IV + 16 + TAG) return null
         val body = sealed.copyOfRange(0, sealed.size - TAG)
@@ -34,7 +28,6 @@ class Keys(token: String) {
         }
     }
 
-    /** A text sealed for the server, as hex for the request line. */
     fun seal(plain: String): String {
         val iv = ByteArray(IV)
         random.nextBytes(iv)
@@ -44,22 +37,18 @@ class Keys(token: String) {
         return hex(body + hmac(mac, body))
     }
 
-    /** A fresh random value that ties an answer to the request it was sent for. */
     fun nonce(): String {
         val bytes = ByteArray(16)
         random.nextBytes(bytes)
         return hex(bytes)
     }
 
-    /** Whether a beacon text was signed with these keys. */
     fun verify(text: String, signature: String): Boolean =
         MessageDigest.isEqual(hex(hmac(mac, text.toByteArray(Charsets.UTF_8))).toByteArray(), signature.toByteArray())
 
     private companion object {
         const val IV = 16
         const val TAG = 32
-        // Only IVs and nonces come from it, which have to be unique, not secret; the weak
-        // seeding of Android 4.1-4.3 that lint warns about does not matter for them.
         @android.annotation.SuppressLint("TrulyRandom")
         val random = java.security.SecureRandom()
 
@@ -80,12 +69,6 @@ class Keys(token: String) {
     }
 }
 
-/**
- * Listens for the server's beacon `DESKSTATS2 <ip> <port> <time> <hmac>` on UDP port 8788 and
- * reports the Mac's Wi-Fi address. Only a beacon signed with our token, sent from the address
- * it names, naming a private network address and newer than the last one is taken, so another
- * device can neither point the panel at itself nor replay an old beacon.
- */
 class Beacon(private val keys: () -> Keys?, private val found: (host: String, port: Int) -> Unit) : Thread("beacon") {
     @Volatile private var socket: DatagramSocket? = null
 
@@ -120,7 +103,6 @@ class Beacon(private val keys: () -> Keys?, private val found: (host: String, po
                 if (port !in 1..65535) continue
                 if (packet.address?.hostAddress != host || !Settings.isPrivateAddress(host)) continue
                 val k = keys() ?: continue
-                // A new token starts the count of beacon times anew.
                 if (k !== signer) {
                     signer = k
                     newest = 0L
@@ -130,7 +112,6 @@ class Beacon(private val keys: () -> Keys?, private val found: (host: String, po
                 found(host, port)
             }
         } catch (e: Exception) {
-            // Closed by stopListening(), or the network went away; the next onStart starts again.
         } finally {
             s.close()
         }

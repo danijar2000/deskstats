@@ -1,40 +1,40 @@
 #!/usr/bin/env bash
-# Устанавливает deskstats из готовых сборок на GitHub: сервер на этот Mac и, если телефон
-# подключён по USB, приложение на телефон. Rust и Android SDK не нужны.
+# Installs deskstats from the latest GitHub release: the server on this Mac and, when a phone
+# is connected over USB, the app on the phone.
 #
-#   curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash -s -- --city Bishkek --lan
+#   curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash -s -- --uninstall
 #
-# Параметры после «--» уходят серверу (см. «Параметры сервера» в README). Свои:
-#   --no-phone    не ставить приложение на телефон
-#   --uninstall   удалить сервер с этого Mac
+# --no-phone skips the phone.
 set -euo pipefail
 
-repo="danijar2000/deskstats"
-base="https://github.com/$repo/releases/latest/download"
+base="https://github.com/danijar2000/deskstats/releases/latest/download"
 phone=1
-args=()
+uninstall=0
 for arg in "$@"; do
   case "$arg" in
     --no-phone) phone=0 ;;
-    *) args+=("$arg") ;;
+    --uninstall) uninstall=1 ;;
+    *) echo "usage: setup.sh [--no-phone] [--uninstall]" >&2; exit 2 ;;
   esac
 done
 
 say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 fail() { printf 'setup.sh: %s\n' "$*" >&2; exit 1; }
 
-[ "$(uname -s)" = Darwin ] || fail "сервер работает только на macOS"
+[ "$(uname -s)" = Darwin ] || fail "the server runs on macOS only"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-say "Скачиваю сервер"
-curl -fsSL "$base/deskstats-server-macos.tar.gz" -o "$work/server.tar.gz" || fail "не удалось скачать сервер с $base"
+say "Downloading the server"
+curl -fsSL "$base/deskstats-server-macos.tar.gz" -o "$work/server.tar.gz" || fail "cannot download $base/deskstats-server-macos.tar.gz"
 tar -xzf "$work/server.tar.gz" -C "$work"
-"$work/deskstats-server/install.sh" ${args[@]+"${args[@]}"}
-for arg in ${args[@]+"${args[@]}"}; do
-  [ "$arg" = --uninstall ] && exit 0
-done
+if [ "$uninstall" = 1 ]; then
+  "$work/deskstats-server/install.sh" --uninstall
+  exit 0
+fi
+"$work/deskstats-server/install.sh"
 
 [ "$phone" = 1 ] || exit 0
 adb="$(command -v adb || true)"
@@ -44,30 +44,30 @@ for candidate in "$HOME/Library/Android/sdk/platform-tools/adb" /opt/homebrew/bi
 done
 if [ -z "$adb" ]; then
   echo
-  echo "adb не найден, приложение на телефон не ставлю. Поставьте его и запустите setup.sh снова:"
+  echo "adb not found, so the phone app is not installed. Install adb and run setup.sh again:"
   echo "  brew install android-platform-tools"
   exit 0
 fi
 if ! "$adb" get-state >/dev/null 2>&1; then
   echo
-  echo "Телефон по USB не виден (нужна «Отладка по USB» и один подключённый телефон)."
-  echo "Подключите его и запустите setup.sh снова, или поставьте APK сами:"
+  echo "No phone over USB (USB debugging must be on, with one phone connected)."
+  echo "Connect it and run setup.sh again, or install the app yourself:"
   echo "  $base/deskstats.apk"
   exit 0
 fi
 
-say "Скачиваю приложение для телефона"
-curl -fsSL "$base/deskstats.apk" -o "$work/deskstats.apk" || fail "не удалось скачать APK"
-say "Ставлю приложение на телефон"
+say "Downloading the phone app"
+curl -fsSL "$base/deskstats.apk" -o "$work/deskstats.apk" || fail "cannot download the app"
+say "Installing the app on the phone"
 if ! out="$("$adb" install -r "$work/deskstats.apk" 2>&1)"; then
   echo "$out"
-  if [[ "$out" == *INSTALL_FAILED_UPDATE_INCOMPATIBLE* ]]; then
+  if [[ "$out" == *INSTALL_FAILED_UPDATE_INCOMPATIBLE* || "$out" == *INSTALL_FAILED_VERSION_DOWNGRADE* ]]; then
     echo
-    echo "На телефоне стоит сборка с другой подписью. Удалите её (настройки блоков и городов сбросятся)"
-    echo "и запустите setup.sh снова:"
+    echo "The phone has a build with another signature or a newer version. Remove it"
+    echo "(its settings are lost) and run setup.sh again:"
     echo "  $adb uninstall app.deskstats"
   fi
   exit 1
 fi
 echo
-echo "Готово. Через несколько секунд сервер сам откроет панель на телефоне и передаст ей ключ."
+echo "Done. In a few seconds the Mac opens the panel on the phone and pairs it."

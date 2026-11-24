@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Renders icon.svg into AppIcon.icns (needs rsvg-convert: brew install librsvg). The result is
-# kept in the repository, so installing the server does not need this.
+# Renders icon.svg into AppIcon.icns (needs rsvg-convert: brew install librsvg).
 set -euo pipefail
 cd "$(dirname "$0")"
 tmp="$(mktemp -d)"

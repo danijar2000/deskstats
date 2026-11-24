@@ -1,12 +1,3 @@
-//! Load per application: CPU, memory, network and GPU, for the phone's detail page.
-//!
-//! Nothing here runs unless the phone asks for /procs. The first request takes two snapshots a
-//! moment apart; each next one is compared with the one before. When the phone stops asking,
-//! main drops the whole state (see `forget_when_idle`), so it costs neither time nor memory.
-//!
-//! A snapshot runs `ps` and `nettop`. It is taken outside the lock and with a time limit, so a
-//! tool that hangs costs one stale answer, not the server.
-
 use crate::ffi::*;
 use crate::util::json_escape;
 use std::collections::HashMap;
@@ -14,32 +5,24 @@ use std::ffi::{c_void, CStr, CString};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// How many applications one answer carries.
 const ROWS: usize = 16;
-/// Snapshots closer than this are not compared: the rates would be noise.
 const MIN_GAP: Duration = Duration::from_millis(300);
-/// Unused for this long, the state is dropped.
 const IDLE: Duration = Duration::from_secs(10);
-/// `ps` and `nettop` answer in hundredths of a second; one that takes this long hangs.
 const TOOL_TIMEOUT: Duration = Duration::from_secs(2);
-/// A process may become another program (exec), so its name is looked up again this often.
 const NAME_AGE: Duration = Duration::from_secs(5);
 
 #[derive(Default, Clone, Copy)]
 struct Counters {
-    /// CPU time in hundredths of a second.
     cpu_cs: u64,
     ram: u64,
     rx: u64,
     tx: u64,
-    /// GPU time in nanoseconds.
     gpu_ns: u64,
 }
 
 struct Snapshot {
     at: Instant,
     pids: HashMap<i32, Counters>,
-    /// Whether nettop answered; without it the network counters are not compared.
     network: bool,
 }
 
@@ -56,12 +39,10 @@ struct Row {
 
 struct Procs {
     prev: Snapshot,
-    /// Application name of each process and when it was looked up.
     names: HashMap<i32, (String, Instant)>,
     rows: Vec<Row>,
 }
 
-/// The per-application state; empty unless the phone is looking at the page.
 #[derive(Default)]
 pub struct Tracker {
     inner: Mutex<Inner>,
@@ -71,12 +52,10 @@ pub struct Tracker {
 struct Inner {
     procs: Option<Procs>,
     used: Option<Instant>,
-    /// A snapshot is being taken; other requests answer from the rows they have.
     busy: bool,
 }
 
 impl Tracker {
-    /// The answer to GET /procs?sort=cpu|ram|net|gpu: the heaviest applications by that measure.
     pub fn json(&self, sort: &str) -> String {
         let first = {
             let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -90,7 +69,6 @@ impl Tracker {
             due
         };
         if let Some(first) = first {
-            // Rates need two snapshots; the first answer waits for the second one.
             let before = if first { snapshot() } else { None };
             if first {
                 std::thread::sleep(Duration::from_millis(400));
@@ -136,8 +114,6 @@ impl Tracker {
         format!("{{\"sort\":\"{sort}\",\"total\":{},\"procs\":[{}]}}", sorted.len(), list.join(","))
     }
 
-    /// Frees everything once the phone has left the page. Never waits for the lock: this runs
-    /// in the sampling loop.
     pub fn forget_when_idle(&self) {
         let Ok(mut inner) = self.inner.try_lock() else { return };
         if !inner.busy && inner.used.is_some_and(|t| t.elapsed() >= IDLE) {
@@ -147,11 +123,9 @@ impl Tracker {
 }
 
 impl Procs {
-    /// Takes the next snapshot in: new rows, and names for the processes that need one.
     fn advance(&mut self, now: Snapshot) {
         self.names.retain(|pid, _| now.pids.contains_key(pid));
         for pid in now.pids.keys() {
-            // An empty name is a lookup that failed (the process was just starting); try again.
             if self.names.get(pid).is_none_or(|(name, at)| name.is_empty() || at.elapsed() >= NAME_AGE) {
                 self.names.insert(*pid, (app_name(*pid), Instant::now()));
             }
@@ -161,7 +135,6 @@ impl Procs {
     }
 }
 
-/// Per-application rates between two snapshots. Processes are grouped by their .app bundle.
 fn rows(prev: &Snapshot, now: &Snapshot, names: &HashMap<i32, (String, Instant)>) -> Vec<Row> {
     let seconds = now.at.duration_since(prev.at).as_secs_f64().max(0.001);
     let mut apps: HashMap<&str, Row> = HashMap::new();
@@ -170,8 +143,6 @@ fn rows(prev: &Snapshot, now: &Snapshot, names: &HashMap<i32, (String, Instant)>
         let row = apps.entry(name.as_str()).or_insert_with(|| Row { name: name.clone(), ..Row::default() });
         row.count += 1;
         row.ram += c.ram;
-        // A process seen for the first time has no rate yet; a counter that went back (network
-        // connections closed, pid reused) adds nothing.
         if let Some(p) = prev.pids.get(pid) {
             row.cpu += c.cpu_cs.saturating_sub(p.cpu_cs) as f64 / seconds;
             if prev.network && now.network {
@@ -184,7 +155,6 @@ fn rows(prev: &Snapshot, now: &Snapshot, names: &HashMap<i32, (String, Instant)>
     apps.into_values().collect()
 }
 
-/// None when `ps` did not answer: without the list of processes there is nothing to compare.
 fn snapshot() -> Option<Snapshot> {
     let mut pids = HashMap::new();
     if !read_ps(&mut pids) {
@@ -200,8 +170,6 @@ fn output(program: &str, args: &[&str]) -> Option<String> {
     crate::util::run(program, args, TOOL_TIMEOUT).map(|(_, text)| text)
 }
 
-/// CPU time and resident memory of every process. `ps` is the one tool allowed to read them for
-/// processes of other users (WindowServer, kernel_task), which libproc refuses to this server.
 fn read_ps(pids: &mut HashMap<i32, Counters>) -> bool {
     let Some(text) = output("/bin/ps", &["-axo", "pid=,time=,rss="]) else { return false };
     for line in text.lines() {
@@ -213,7 +181,6 @@ fn read_ps(pids: &mut HashMap<i32, Counters>) -> bool {
     !pids.is_empty()
 }
 
-/// "535:45.35" (minutes, seconds, hundredths; also with hours or days in front) in hundredths of a second.
 pub fn parse_cpu_time(text: &str) -> Option<u64> {
     let (days, rest) = match text.split_once('-') {
         Some((d, r)) => (d.parse::<u64>().ok()?, r),
@@ -232,7 +199,6 @@ pub fn parse_cpu_time(text: &str) -> Option<u64> {
     Some((days * 86400 + seconds) * 100 + hundredths)
 }
 
-/// The memory figure Activity Monitor shows, for the processes of this user; the rest keep `rss`.
 fn read_footprints(pids: &mut HashMap<i32, Counters>) {
     for (pid, c) in pids.iter_mut() {
         let mut info = [0u64; 20];
@@ -242,7 +208,6 @@ fn read_footprints(pids: &mut HashMap<i32, Counters>) {
     }
 }
 
-/// Bytes received and sent over each process's open connections, as `nettop` reports them.
 fn read_network(pids: &mut HashMap<i32, Counters>) -> bool {
     let Some(text) = output("/usr/bin/nettop", &["-P", "-L", "1", "-x", "-n", "-J", "bytes_in,bytes_out"]) else { return false };
     for line in text.lines().skip(1) {
@@ -255,7 +220,6 @@ fn read_network(pids: &mut HashMap<i32, Counters>) -> bool {
     true
 }
 
-/// One nettop line, `name.pid,bytes_in,bytes_out,`; the name may hold dots, commas do not occur.
 pub fn parse_nettop(line: &str) -> Option<(i32, u64, u64)> {
     let mut fields = line.split(',');
     let pid = fields.next()?.rsplit_once('.')?.1.parse().ok()?;
@@ -278,9 +242,6 @@ impl Drop for GpuKeys {
     }
 }
 
-/// GPU time of each process: every client of the graphics accelerator names its owner
-/// ("pid 415, WindowServer") and carries the time its command queues ran. Apple does not
-/// document these keys; without them the GPU column stays at zero.
 fn read_gpu(pids: &mut HashMap<i32, Counters>) {
     let (Ok(class), Ok(plane)) = (CString::new("IOAccelerator"), CString::new("IOService")) else { return };
     let keys = GpuKeys { creator: cf_string("IOUserClientCreator"), usage: cf_string("AppUsage"), time: cf_string("accumulatedGPUTime") };
@@ -344,20 +305,16 @@ unsafe fn gpu_client(keys: &GpuKeys, client: u32) -> Option<(i32, u64)> {
     Some((parse_creator(&text?)?, ns))
 }
 
-/// The pid from "pid 415, WindowServer".
 pub fn parse_creator(text: &str) -> Option<i32> {
     text.strip_prefix("pid ")?.split(',').next()?.trim().parse().ok()
 }
 
-/// The application a process belongs to: the name of the outermost .app bundle in its path
-/// (so the helpers of a browser count as the browser), otherwise the name of the program.
 fn app_name(pid: i32) -> String {
     let mut buf = [0u8; 4096];
     let len = unsafe { proc_pidpath(pid, buf.as_mut_ptr() as *mut c_void, buf.len() as u32) };
     if len > 0 {
         return name_from_path(&String::from_utf8_lossy(&buf[..len as usize]));
     }
-    // The kernel and a few system processes have no path.
     let len = unsafe { proc_name(pid, buf.as_mut_ptr() as *mut c_void, 256) };
     if len > 0 {
         return CStr::from_bytes_until_nul(&buf).map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
@@ -419,10 +376,8 @@ mod tests {
         out.sort_by(|a, b| a.name.cmp(&b.name));
         assert_eq!((out[0].count, out[0].ram), (2, 50));
         assert!((out[0].cpu - 25.0).abs() < 1e-9);
-        // pid 2's counter went back and adds nothing
         assert!((out[0].down - 1000.0).abs() < 1e-9);
         assert_eq!(out[1].cpu, 0.0);
-        // a snapshot without nettop's answer is not compared: its zeroes would read as a reset
         now.network = false;
         assert!(rows(&prev, &now, &names).iter().all(|r| r.down == 0.0));
     }
