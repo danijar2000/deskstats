@@ -90,6 +90,13 @@
     <string name="places_a11y">Selected: %1$s. Cities: %2$s</string>
     <string name="none">none</string>
     <string name="places_empty">Add a city: the clock and the weather follow it.</string>
+    <string name="servers_title">Macs</string>
+    <string name="server_unnamed">Mac %1$d</string>
+    <string name="servers_wifi">Wi‑Fi: %1$s</string>
+    <string name="servers_no_wifi">Wi‑Fi: not found yet</string>
+    <string name="servers_hint">To add a Mac, connect the phone to it with the cable once. On the main screen, swipe left or right to switch between Macs.</string>
+    <string name="servers_removed">%1$s removed from the list</string>
+    <string name="servers_a11y">Shown: %1$s. Macs: %2$s</string>
     <string name="city_a11y">Cities (%1$d), by region: %2$s</string>
     <string name="region_kyrgyzstan">Kyrgyzstan</string>
     <string name="region_central_asia">Central Asia</string>

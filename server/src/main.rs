@@ -71,6 +71,7 @@ struct Load<'a> {
     ts: u64,
     interval_ms: u128,
     mac: &'a str,
+    name: &'a str,
     cpu_name: &'a str,
     cpu_pct: f64,
     gpu: Option<(f64, u64)>,
@@ -88,8 +89,8 @@ fn head_json(l: &Load) -> String {
     };
     let ram_pct = if l.ram_total > 0 { l.ram_used as f64 * 100.0 / l.ram_total as f64 } else { 0.0 };
     format!(
-        "{{\"ts\":{},\"interval_ms\":{},\"mac\":\"{}\",\"cpu\":{{\"name\":\"{}\",\"pct\":{:.1}}},\"gpu\":{gpu},\"ram\":{{\"used\":{},\"total\":{},\"pct\":{ram_pct:.1}}},\"net\":{{\"down_bps\":{:.0},\"up_bps\":{:.0}}},\"batteries\":{},",
-        l.ts, l.interval_ms, l.mac, l.cpu_name, l.cpu_pct, l.ram_used, l.ram_total, l.down_bps, l.up_bps, l.batteries,
+        "{{\"ts\":{},\"interval_ms\":{},\"mac\":\"{}\",\"name\":\"{}\",\"cpu\":{{\"name\":\"{}\",\"pct\":{:.1}}},\"gpu\":{gpu},\"ram\":{{\"used\":{},\"total\":{},\"pct\":{ram_pct:.1}}},\"net\":{{\"down_bps\":{:.0},\"up_bps\":{:.0}}},\"batteries\":{},",
+        l.ts, l.interval_ms, l.mac, l.name, l.cpu_name, l.cpu_pct, l.ram_used, l.ram_total, l.down_bps, l.up_bps, l.batteries,
     )
 }
 
@@ -147,6 +148,7 @@ fn main() {
 
     let machine = sampler::Host::new();
     let cpu_name = json_escape(&sampler::sysctl_string("machdep.cpu.brand_string"));
+    let name = json_escape(&sampler::computer_name());
     let ram_total = sampler::sysctl_u64("hw.memsize");
     let page_size = sampler::sysctl_u64("hw.pagesize").max(4096);
     let gpu = sampler::Gpu::new();
@@ -188,6 +190,7 @@ fn main() {
             ts: now_ms(),
             interval_ms: interval.as_millis(),
             mac: power::state(),
+            name: &name,
             cpu_name: &cpu_name,
             cpu_pct: sampler::cpu_percent(&prev_cpu, &cpu),
             gpu: gpu.sample(),
@@ -224,6 +227,7 @@ mod tests {
             ts: 1700000000000,
             interval_ms: 1000,
             mac: "awake",
+            name: "Studio",
             cpu_name: "Apple M4",
             cpu_pct: 12.34,
             gpu: Some((9.0, 1048576)),
@@ -237,7 +241,7 @@ mod tests {
         let sample = http::Sample { head: head_json(&load), alerts: alerts_json(Some(std::slice::from_ref(&item)), 6), alerts_full: alerts_json(None, 30) };
         assert_eq!(
             sample.json(false, "null"),
-            "{\"ts\":1700000000000,\"interval_ms\":1000,\"mac\":\"awake\",\"cpu\":{\"name\":\"Apple M4\",\"pct\":12.3},\"gpu\":{\"pct\":9,\"mem_used\":1048576},\
+            "{\"ts\":1700000000000,\"interval_ms\":1000,\"mac\":\"awake\",\"name\":\"Studio\",\"cpu\":{\"name\":\"Apple M4\",\"pct\":12.3},\"gpu\":{\"pct\":9,\"mem_used\":1048576},\
              \"ram\":{\"used\":8,\"total\":16,\"pct\":50.0},\"net\":{\"down_bps\":1500,\"up_bps\":0},\"batteries\":[],\
              \"alerts\":[{\"id\":7,\"ts\":5,\"app\":\"Mail\",\"title\":\"a \\\"b\\\"\",\"subtitle\":\"\",\"body\":\"c d\"}],\"weather\":null}"
         );

@@ -138,6 +138,31 @@ class PanelView(context: Context, private val history: History) : View(context) 
         }
     private var refusedLabel = ""
 
+    /** How many Macs are paired, which of them is shown and its name: with more than one, the status names it and dots show where it is. */
+    var servers = 1
+        set(value) {
+            if (field != value) {
+                field = value
+                describe(true)
+                invalidate()
+            }
+        }
+    var serverIndex = 0
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidate()
+            }
+        }
+    var serverName = ""
+        set(value) {
+            if (field != value) {
+                field = value
+                describe(true)
+                invalidate()
+            }
+        }
+
     private var weather: Weather? = null
     private var weatherMissingSince = 0L
     private var weatherIcon = ""
@@ -483,7 +508,12 @@ class PanelView(context: Context, private val history: History) : View(context) 
         return body.isNotEmpty() && na.contains(body) && nb.contains(norm(a.body).ifEmpty { norm(a.title) })
     }
 
-    private fun statusLabel(): String = when (link) {
+    private fun statusLabel(): String {
+        val label = linkLabel()
+        return if (servers > 1 && serverName.isNotEmpty() && label.startsWith(MAC)) serverName + label.substring(MAC.length) else label
+    }
+
+    private fun linkLabel(): String = when (link) {
         Link.ONLINE -> if (route == Route.WIFI) words.wifi else words.usb
         Link.STARTING -> words.starting
         Link.WAITING -> words.waiting
@@ -706,7 +736,19 @@ class PanelView(context: Context, private val history: History) : View(context) 
         text.textAlign = Paint.Align.LEFT
         text.textSize = size
         text.color = if (bad) p.bad else p.muted
-        canvas.drawText(text.fit(statusLabel(), l.gear.left - l.gap - l.pad - size * 1.15f), l.pad + size * 1.15f, baseline, text)
+        var right = l.gear.left - l.gap
+        if (servers > 1) {
+            val r = size * 0.15f
+            val step = r * 3.4f
+            val cy = baseline - size * 0.33f
+            val first = right - r - step * (servers - 1)
+            for (i in 0 until servers) {
+                fill.color = if (i == serverIndex) p.text else p.dim
+                canvas.drawCircle(first + step * i, cy, if (i == serverIndex) r * 1.2f else r, fill)
+            }
+            right = first - r - size
+        }
+        canvas.drawText(text.fit(statusLabel(), right - l.pad - size * 1.15f), l.pad + size * 1.15f, baseline, text)
     }
 
     private fun drawGear(canvas: Canvas, l: Layout) {
@@ -1174,6 +1216,7 @@ class PanelView(context: Context, private val history: History) : View(context) 
     }
 
     companion object {
+        private const val MAC = "Mac"
         private const val ALERT_ROWS = 3
         private const val BATTERY_SLOTS = 3
         private const val HIGHLIGHT_MS = 7000L

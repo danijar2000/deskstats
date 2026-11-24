@@ -77,6 +77,13 @@
     <string name="places_a11y">Выбрано: %1$s. Города: %2$s</string>
     <string name="none">нет</string>
     <string name="places_empty">Добавьте город: по нему идут часы и погода.</string>
+    <string name="servers_title">Компьютеры Mac</string>
+    <string name="server_unnamed">Mac %1$d</string>
+    <string name="servers_wifi">Wi‑Fi: %1$s</string>
+    <string name="servers_no_wifi">Wi‑Fi: пока не найден</string>
+    <string name="servers_hint">Чтобы добавить Mac, один раз подключите к нему телефон кабелем. На главном экране свайп влево или вправо переключает между Mac.</string>
+    <string name="servers_removed">«%1$s» убран из списка</string>
+    <string name="servers_a11y">Показан: %1$s. Mac: %2$s</string>
     <string name="city_a11y">Города (%1$d) по регионам: %2$s</string>
     <string name="region_kyrgyzstan">Кыргызстан</string>
     <string name="region_central_asia">Центральная Азия</string>

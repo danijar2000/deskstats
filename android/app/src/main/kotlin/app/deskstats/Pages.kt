@@ -26,6 +26,8 @@ abstract class Page(context: Context, protected val host: Host) : View(context) 
         var places: Places
         var setup: BlockSetup
         var options: Options
+        val servers: Servers
+        fun changeServers(change: (Servers) -> Servers)
     }
 
     protected abstract val title: String

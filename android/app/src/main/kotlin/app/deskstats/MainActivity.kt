@@ -10,6 +10,11 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.AlphaAnimation
+import android.view.animation.Animation
+import android.view.animation.AnimationSet
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.TranslateAnimation
 import android.widget.FrameLayout
 import org.json.JSONObject
 import java.io.IOException
@@ -17,6 +22,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.math.abs
+import kotlin.math.min
 
 data class Weather(
     val temp: Float,
@@ -35,6 +42,7 @@ data class Alert(val id: String, val ts: Long, val app: String, val title: Strin
 
 class Stats(
     val ts: Long,
+    val name: String,
     val intervalMs: Long,
     val cpuName: String,
     val cpuPct: Float,
@@ -98,6 +106,7 @@ class Stats(
             }
             return Stats(
                 ts = o.optLong("ts"),
+                name = o.optString("name").trim().take(64),
                 intervalMs = o.optLong("interval_ms", 1000L).coerceIn(200L, 60_000L),
                 cpuName = cpu.optString("name"),
                 cpuPct = cpu.getDouble("pct").toFloat(),
@@ -126,7 +135,8 @@ class MainActivity : Activity(), Page.Host {
     private lateinit var clock: ClockView
     private lateinit var root: FrameLayout
     private lateinit var ui: Context
-    private val history = History()
+    private var history = History()
+    private val histories = HashMap<String, History>()
 
     private val pages = ArrayList<Page>()
     @Volatile private var procsSort: String? = null
@@ -169,10 +179,8 @@ class MainActivity : Activity(), Page.Host {
     @Volatile private var intervalMs = 1000L
     @Volatile private var configQuery = Options().query
     @Volatile private var usbPort = Settings.DEFAULT_PORT
-    @Volatile private var token = ""
-    @Volatile private var keys: Keys? = null
-    @Volatile private var wifiHost: String? = null
-    @Volatile private var wifiPort = 0
+    @Volatile private var paired = Servers(emptyList(), null)
+    override val servers: Servers get() = paired
     private var beacon: Beacon? = null
     private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
 
@@ -231,13 +239,21 @@ class MainActivity : Activity(), Page.Host {
         root.removeAllViews()
         root.setBackgroundColor(Ui.p.background)
         if (root.visibility == View.VISIBLE) window.setBackgroundDrawable(ColorDrawable(Ui.p.background))
-        panel = PanelView(ui, history)
         clock = ClockView(ui)
+        panel = makePanel()
         root.addView(panel)
         root.addView(clock)
-        panel.onLayout = clock::place
-        panel.onGear = { open(SettingsPage(ui, this)) }
-        panel.onBlock = { block ->
+        if (built) restorePanel()
+        built = true
+        if (reopenSettings) open(SettingsPage(ui, this))
+        watchTopPage()
+    }
+
+    private fun makePanel(): PanelView {
+        val p = PanelView(ui, history)
+        p.onLayout = clock::place
+        p.onGear = { open(SettingsPage(ui, this)) }
+        p.onBlock = { block ->
             when (block) {
                 Block.CLOCK, Block.WEATHER -> open(PlacesPage(ui, this))
                 Block.ALERTS -> open(AlertsPage(ui, this).also { page -> panel.latest?.let(page::push) })
@@ -245,20 +261,72 @@ class MainActivity : Activity(), Page.Host {
                 Block.BATTERIES -> {}
             }
         }
-        panel.alertsEnabled = options.alerts
-        if (built) {
-            panel.setup = setup
-            applyPlace()
-            panel.address = usbBase()
-            panel.route = route
-            if (refused != 0) panel.refused = refused
-            panel.link = link
-            clock.link = link
-            history.last?.let { panel.push(it, lastAsked != null && lastAsked == placeQuery, sample = false) }
+        p.alertsEnabled = options.alerts
+        return p
+    }
+
+    private fun restorePanel() {
+        panel.setup = setup
+        applyPlace()
+        panel.address = usbBase()
+        panel.route = route
+        if (refused != 0) panel.refused = refused
+        panel.link = link
+        clock.link = link
+        showServers()
+        history.last?.let { panel.push(it, lastAsked != null && lastAsked == placeQuery, sample = false) }
+    }
+
+    private fun serverName(server: Server) = paired.displayName(server) { ui.getString(R.string.server_unnamed, it) }
+
+    private fun showServers() {
+        val s = paired
+        panel.servers = s.list.size
+        panel.serverIndex = s.index
+        panel.serverName = s.active?.let(::serverName) ?: ""
+        (pages.lastOrNull() as? ServersPage)?.resumed()
+    }
+
+    override fun changeServers(change: (Servers) -> Servers) = applyServers(Servers.update(prefs, change))
+
+    /** Takes a new list of Macs; when another Mac becomes the active one, the panel starts over with its data. */
+    private fun applyServers(new: Servers, direction: Int = 0) {
+        val oldId = paired.active?.id
+        paired = new
+        histories.keys.retainAll(new.list.map { it.id }.toSet())
+        val id = new.active?.id
+        if (!built) return
+        if (id == oldId) return showServers()
+        history = if (id == null) History() else histories.getOrPut(id) { History() }
+        link = Link.WAITING
+        route = Route.USB
+        refused = 0
+        lastAsked = null
+        offlineSince = 0L
+        wake()
+        val shown = panel.visibility
+        root.removeView(panel)
+        panel = makePanel()
+        panel.visibility = shown
+        root.addView(panel, 0)
+        restorePanel()
+        if (direction != 0 && shown == View.VISIBLE) {
+            panel.startAnimation(slide(direction))
+            clock.startAnimation(slide(direction))
         }
-        built = true
-        if (reopenSettings) open(SettingsPage(ui, this))
-        watchTopPage()
+        restartPolling()
+    }
+
+    private fun slide(direction: Int): Animation = AnimationSet(true).apply {
+        addAnimation(TranslateAnimation(Animation.RELATIVE_TO_PARENT, 0.2f * direction, Animation.RELATIVE_TO_PARENT, 0f, Animation.ABSOLUTE, 0f, Animation.ABSOLUTE, 0f))
+        addAnimation(AlphaAnimation(0f, 1f))
+        duration = 220L
+        interpolator = DecelerateInterpolator()
+    }
+
+    private fun switchServer(step: Int) {
+        if (paired.list.size < 2) return
+        applyServers(Servers.update(prefs) { it.next(step) }, step)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -318,8 +386,38 @@ class MainActivity : Activity(), Page.Host {
         root.postDelayed(idle, if (top is ProcsPage) 600_000L else 180_000L)
     }
 
+    private var swipeX = 0f
+    private var swipeY = 0f
+    private var swiping = false
+
+    // A horizontal swipe on the main screen goes to the next or the previous Mac. It is caught here,
+    // above the views, so that it works on a darkened screen too.
     override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
         restartIdle()
+        if (event != null && pages.isEmpty() && paired.list.size > 1) {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    swipeX = event.x
+                    swipeY = event.y
+                    swiping = true
+                }
+                MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_CANCEL -> swiping = false
+                MotionEvent.ACTION_UP -> if (swiping) {
+                    swiping = false
+                    val dx = event.x - swipeX
+                    val dy = event.y - swipeY
+                    val far = min(root.width, root.height) * 0.18f
+                    if (abs(dx) > far && abs(dx) > abs(dy) * 1.5f) {
+                        val cancel = MotionEvent.obtain(event)
+                        cancel.action = MotionEvent.ACTION_CANCEL
+                        super.dispatchTouchEvent(cancel)
+                        cancel.recycle()
+                        switchServer(if (dx < 0) 1 else -1)
+                        return true
+                    }
+                }
+            }
+        }
         return super.dispatchTouchEvent(event)
     }
 
@@ -366,7 +464,7 @@ class MainActivity : Activity(), Page.Host {
         setBrightness(if (dimmed) DIM else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
         root.postDelayed(shift, 120_000L)
         restartIdle()
-        poller = Thread(::poll, "poller").also { it.start() }
+        startPolling()
         listenForBeacon()
     }
 
@@ -379,11 +477,10 @@ class MainActivity : Activity(), Page.Host {
             }
         } catch (e: Exception) {
         }
-        beacon = Beacon({ keys }) { host, port ->
-            if (host == wifiHost && port == wifiPort) return@Beacon
-            wifiHost = host
-            wifiPort = port
-            prefs.edit().putString(Settings.WIFI_HOST, host).putInt(Settings.WIFI_PORT, port).commit()
+        beacon = Beacon({ paired.list }) { server, host, port ->
+            if (host == server.host && port == server.port) return@Beacon
+            Servers.update(prefs) { s -> s.byId(server.id)?.let { s.replace(it.at(host, port)) } ?: s }
+            root.post { applyServers(Servers.load(prefs)) }
         }.also { it.start() }
     }
 
@@ -395,23 +492,15 @@ class MainActivity : Activity(), Page.Host {
     private fun loadSettings() {
         val prefs = prefs
         usbPort = prefs.getInt(Settings.USB_PORT, Settings.DEFAULT_PORT)
-        token = prefs.getString(Settings.TOKEN, null) ?: ""
-        keys = if (token.isEmpty()) null else Keys(token)
-        wifiHost = prefs.getString(Settings.WIFI_HOST, null)
-        wifiPort = prefs.getInt(Settings.WIFI_PORT, 0)
         panel.address = usbBase()
+        applyServers(Servers.load(prefs))
     }
 
     override fun onStop() {
         super.onStop()
         root.removeCallbacks(shift)
         root.removeCallbacks(idle)
-        val old = poller
-        poller = null
-        old?.interrupt()
-        // interrupt() does not stop a blocking socket read; closing the connection does.
-        val open = connection
-        if (open != null) Thread { open.disconnect() }.start()
+        stopPolling()
         beacon?.stopListening()
         beacon = null
         try {
@@ -419,6 +508,34 @@ class MainActivity : Activity(), Page.Host {
         } catch (e: Exception) {
         }
         multicastLock = null
+    }
+
+    private fun startPolling() {
+        poller = Thread(::poll, "poller").also { it.start() }
+    }
+
+    private fun stopPolling() {
+        val old = poller
+        poller = null
+        old?.interrupt()
+        // interrupt() does not stop a blocking socket read; closing the connection does.
+        val open = connection
+        if (open != null) Thread { open.disconnect() }.start()
+    }
+
+    /** Polls the newly chosen Mac from scratch; does nothing while the activity is stopped. */
+    private fun restartPolling() {
+        if (poller == null) return
+        stopPolling()
+        startPolling()
+    }
+
+    private fun wake() {
+        macAsleep = false
+        dimmed = false
+        root.visibility = View.VISIBLE
+        window.setBackgroundDrawable(ColorDrawable(Ui.p.background))
+        setBrightness(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
     }
 
     private fun show(link: Link, stats: Stats?, route: Route? = null, code: Int = 0, asked: String? = null) {
@@ -481,11 +598,11 @@ class MainActivity : Activity(), Page.Host {
 
     private fun usbBase() = "http://127.0.0.1:$usbPort"
 
-    private fun base(route: Route) = if (route == Route.USB) usbBase() else "http://$wifiHost:$wifiPort"
+    private fun base(route: Route, server: Server) = if (route == Route.USB) usbBase() else "http://${server.host}:${server.port}"
 
-    private fun askProcs(route: Route, sort: String) {
+    private fun askProcs(server: Server, route: Route, sort: String) {
         val answer = try {
-            ask(base(route), "/procs?sort=$sort", 1500)
+            ask(server, base(route, server), "/procs?sort=$sort", 1500)
         } catch (e: IOException) {
             return procsFailed(0)
         }
@@ -523,16 +640,16 @@ class MainActivity : Activity(), Page.Host {
         }
     }
 
-    private fun sendConfig(route: Route, query: String): Boolean = try {
-        ask(base(route), query, 1500).code == 200
+    private fun sendConfig(server: Server, route: Route, query: String): Boolean = try {
+        ask(server, base(route, server), query, 1500).code == 200
     } catch (e: IOException) {
         false
     }
 
     private class Answer(val code: Int, val json: String?)
 
-    private fun ask(base: String, target: String, connectTimeout: Int): Answer {
-        val k = keys ?: return Answer(401, null)
+    private fun ask(server: Server, base: String, target: String, connectTimeout: Int): Answer {
+        val k = server.keys
         val nonce = k.nonce()
         val c = URL("$base/q?" + k.seal("Q\n$nonce\n$target")).openConnection() as HttpURLConnection
         connection = c
@@ -556,6 +673,8 @@ class MainActivity : Activity(), Page.Host {
 
     private fun poll() {
         val me = Thread.currentThread()
+        // Each thread serves one Mac: choosing another one starts a new thread.
+        val id = paired.active?.id
         var route = Route.USB
         var usbRetryAt = 0L
         var procsAsked: String? = null
@@ -565,21 +684,37 @@ class MainActivity : Activity(), Page.Host {
         while (poller === me) {
             var wait = 2000L
             try {
-                val host = wifiHost
+                val server = id?.let { paired.byId(it) }
+                if (server == null) {
+                    show(Link.NO_TOKEN, null)
+                    Thread.sleep(2000L)
+                    continue
+                }
                 val asked = placeQuery
                 val target = "/stats" + listOfNotNull(asked, if (fullAlerts) "alerts=full" else null).joinToString("&").let { if (it.isEmpty()) "" else "?$it" }
                 val routes = ArrayList<Route>(2)
                 if (route == Route.USB || System.currentTimeMillis() >= usbRetryAt) routes.add(Route.USB)
-                if (host != null && wifiPort > 0) routes.add(Route.WIFI)
+                if (server.hasWifi) routes.add(Route.WIFI)
                 var answer: Answer? = null
                 var used = route
+                var usbRefused: Answer? = null
                 for (r in routes) {
                     try {
-                        answer = if (r == Route.USB) ask(usbBase(), target, 700) else ask("http://$host:$wifiPort", target, 1500)
+                        val a = ask(server, base(r, server), target, if (r == Route.USB) 700 else 1500)
+                        // On the cable there may be another paired Mac: it does not know this token.
+                        if (r == Route.USB && a.code == 401 && (Route.WIFI in routes || paired.list.size > 1)) {
+                            usbRefused = a
+                            continue
+                        }
+                        answer = a
                         used = r
                         break
                     } catch (e: IOException) {
                     }
+                }
+                if (answer == null && usbRefused != null && paired.list.size < 2) {
+                    answer = usbRefused
+                    used = Route.USB
                 }
                 if (used == Route.WIFI && Route.USB in routes) {
                     usbRetryAt = System.currentTimeMillis() + 10_000L
@@ -602,18 +737,22 @@ class MainActivity : Activity(), Page.Host {
                         val stats = Stats.parse(JSONObject(answer.json!!))
                         wait = intervalMs
                         show(Link.ONLINE, stats, used, asked = asked)
+                        if (stats.name.isNotEmpty() && stats.name != server.name) {
+                            Servers.update(prefs) { s -> s.byId(server.id)?.let { s.replace(it.named(stats.name)) } ?: s }
+                            root.post { applyServers(Servers.load(prefs)) }
+                        }
                         val query = configQuery
                         val now = System.currentTimeMillis()
                         // A restarted or reinstalled Mac server may have lost the settings.
                         val forgotten = stats.intervalMs != intervalMs
                         if ((query != configSent || forgotten) && now - configAt >= 10_000L) {
                             configAt = now
-                            configSent = if (sendConfig(used, query)) query else null
+                            configSent = if (sendConfig(server, used, query)) query else null
                         }
                         val sort = procsSort
                         if (sort != null && (sort != procsAsked || now - procsAt >= PROCS_MS)) {
                             procsAt = now
-                            askProcs(used, sort)
+                            askProcs(server, used, sort)
                         }
                         procsAsked = sort
                     }

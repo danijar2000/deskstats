@@ -23,6 +23,22 @@ pub fn sysctl_string(name: &str) -> String {
     CStr::from_bytes_until_nul(&buf).map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
+/// The name the Mac shows in System Settings → General → Sharing; the host name if there is none.
+pub fn computer_name() -> String {
+    let name = unsafe {
+        let s = SCDynamicStoreCopyComputerName(std::ptr::null(), std::ptr::null_mut());
+        let out = cf_to_string(s);
+        if !s.is_null() {
+            CFRelease(s);
+        }
+        out
+    };
+    name.map(|n| n.trim().to_string()).filter(|n| !n.is_empty()).unwrap_or_else(|| {
+        let host = sysctl_string("kern.hostname");
+        host.strip_suffix(".local").unwrap_or(&host).to_string()
+    })
+}
+
 pub struct Host(u32);
 
 impl Host {

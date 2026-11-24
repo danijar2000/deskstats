@@ -77,6 +77,9 @@ arrives, remove Deskstats from the list (−) and add `~/Applications/Deskstats.
 - **The gear** opens the settings: language (8 languages), theme (dark, light, neon),
   orientation (landscape, portrait, auto), the blocks of the main screen, Wi‑Fi connection,
   Mac notifications, update interval and weather refresh.
+- **Several Macs**: connect the phone by cable to each Mac once, and it remembers them all. Swipe
+  the main screen left or right to switch; the dots at the top show which Mac is shown. The list,
+  with × to forget a Mac, is in the settings under Macs.
 - **Back** closes a page; an unattended page closes by itself after a few minutes.
 
 To avoid burn-in the picture moves a few pixels every two minutes and the screen dims after

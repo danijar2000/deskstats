@@ -69,7 +69,8 @@ class Keys(token: String) {
     }
 }
 
-class Beacon(private val keys: () -> Keys?, private val found: (host: String, port: Int) -> Unit) : Thread("beacon") {
+/** Listens for the signed broadcasts of the paired Macs and reports which of them is where on the Wi‑Fi. */
+class Beacon(private val servers: () -> List<Server>, private val found: (server: Server, host: String, port: Int) -> Unit) : Thread("beacon") {
     @Volatile private var socket: DatagramSocket? = null
 
     override fun run() {
@@ -85,8 +86,7 @@ class Beacon(private val keys: () -> Keys?, private val found: (host: String, po
         }
         socket = s
         val buf = ByteArray(512)
-        var signer: Keys? = null
-        var newest = 0L
+        val newest = HashMap<String, Long>()
         try {
             while (!isInterrupted) {
                 val packet = DatagramPacket(buf, buf.size)
@@ -102,14 +102,11 @@ class Beacon(private val keys: () -> Keys?, private val found: (host: String, po
                 val time = parts[3].toLongOrNull() ?: continue
                 if (port !in 1..65535) continue
                 if (packet.address?.hostAddress != host || !Settings.isPrivateAddress(host)) continue
-                val k = keys() ?: continue
-                if (k !== signer) {
-                    signer = k
-                    newest = 0L
-                }
-                if (time <= newest || !k.verify("DESKSTATS2 $host $port $time", parts[4])) continue
-                newest = time
-                found(host, port)
+                val text = "DESKSTATS2 $host $port $time"
+                val server = servers().firstOrNull { it.keys.verify(text, parts[4]) } ?: continue
+                if (time <= (newest[server.id] ?: 0L)) continue
+                newest[server.id] = time
+                found(server, host, port)
             }
         } catch (e: Exception) {
         } finally {

@@ -77,6 +77,13 @@
     <string name="places_a11y">Ausgewählt: %1$s. Städte: %2$s</string>
     <string name="none">keine</string>
     <string name="places_empty">Füge eine Stadt hinzu: Uhr und Wetter richten sich nach ihr.</string>
+    <string name="servers_title">Macs</string>
+    <string name="server_unnamed">Mac %1$d</string>
+    <string name="servers_wifi">WLAN: %1$s</string>
+    <string name="servers_no_wifi">WLAN: noch nicht gefunden</string>
+    <string name="servers_hint">Um einen Mac hinzuzufügen, verbinde das Telefon einmal per Kabel mit ihm. Auf dem Hauptbildschirm wechselst du mit einem Wisch nach links oder rechts zwischen den Macs.</string>
+    <string name="servers_removed">%1$s aus der Liste entfernt</string>
+    <string name="servers_a11y">Angezeigt: %1$s. Macs: %2$s</string>
     <string name="city_a11y">Städte (%1$d) nach Region: %2$s</string>
     <string name="region_kyrgyzstan">Kirgisistan</string>
     <string name="region_central_asia">Zentralasien</string>

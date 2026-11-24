@@ -82,6 +82,9 @@ an, kommt aber nichts an, entferne Deskstats aus der Liste (−) und füge
 - **Das Zahnrad** öffnet die Einstellungen: Sprache (8 Sprachen), Design (dunkel, hell, Neon),
   Ausrichtung (quer, hoch, auto), die Blöcke des Startbildschirms, WLAN-Verbindung,
   Mac-Mitteilungen, Aktualisierungsintervall und Wetteraktualisierung.
+- **Mehrere Macs**: Verbinde das Telefon einmal per Kabel mit jedem Mac, es merkt sich alle.
+  Ein Wisch über den Hauptbildschirm nach links oder rechts wechselt den Mac; die Punkte oben
+  zeigen, welcher angezeigt wird. Die Liste (× vergisst einen Mac) steht in den Einstellungen unter Macs.
 - **Zurück** schließt eine Seite; eine unbeachtete Seite schließt sich nach ein paar Minuten
   von selbst.
 
