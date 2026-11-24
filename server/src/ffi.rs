@@ -158,6 +158,11 @@ extern "C" {
     pub fn CFRelease(object: *const c_void);
 }
 
+#[link(name = "SystemConfiguration", kind = "framework")]
+extern "C" {
+    pub fn SCDynamicStoreCopyComputerName(store: *const c_void, encoding: *mut u32) -> *const c_void;
+}
+
 #[link(name = "CoreServices", kind = "framework")]
 extern "C" {
     pub fn LSCopyApplicationURLsForBundleIdentifier(id: *const c_void, error: *mut *const c_void) -> *const c_void;

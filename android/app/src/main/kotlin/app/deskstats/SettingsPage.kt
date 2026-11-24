@@ -7,7 +7,7 @@ import android.graphics.RectF
 import kotlin.math.max
 
 class SettingsPage(context: Context, host: Host) : Page(context, host) {
-    private enum class Kind { LANGUAGE, THEME, ORIENTATION, BLOCKS, WIFI, ALERTS, INTERVAL, WEATHER }
+    private enum class Kind { LANGUAGE, THEME, ORIENTATION, BLOCKS, SERVERS, WIFI, ALERTS, INTERVAL, WEATHER }
 
     private class Item(val kind: Kind, val title: String, val hint: String, val choices: List<String>) {
         var top = 0f
@@ -25,6 +25,7 @@ class SettingsPage(context: Context, host: Host) : Page(context, host) {
         Item(Kind.THEME, context.getString(R.string.set_theme), "", listOf(R.string.theme_dark, R.string.theme_light, R.string.theme_neon).map(context::getString)),
         Item(Kind.ORIENTATION, context.getString(R.string.set_orientation), "", listOf(R.string.orient_landscape, R.string.orient_portrait, R.string.orient_auto).map(context::getString)),
         Item(Kind.BLOCKS, context.getString(R.string.blocks_title), "", emptyList()),
+        Item(Kind.SERVERS, context.getString(R.string.servers_title), "", emptyList()),
         Item(Kind.WIFI, context.getString(R.string.set_wifi), context.getString(R.string.set_wifi_hint), emptyList()),
         Item(Kind.ALERTS, context.getString(R.string.set_alerts), context.getString(R.string.set_alerts_hint), emptyList()),
         Item(Kind.INTERVAL, context.getString(R.string.set_interval), "", Options.INTERVALS.map { seconds(it) }),
@@ -56,6 +57,7 @@ class SettingsPage(context: Context, host: Host) : Page(context, host) {
     private fun value(kind: Kind): String = when (kind) {
         Kind.LANGUAGE -> languageName(context, host.options.language)
         Kind.BLOCKS -> context.getString(R.string.blocks_shown, Block.values().size - host.setup.hidden.size, Block.values().size)
+        Kind.SERVERS -> host.servers.let { s -> s.active?.let { a -> s.displayName(a) { context.getString(R.string.server_unnamed, it) } } ?: context.getString(R.string.none) }
         else -> ""
     }
 
@@ -66,7 +68,7 @@ class SettingsPage(context: Context, host: Host) : Page(context, host) {
             val v = when (item.kind) {
                 Kind.WIFI -> if (host.options.lan) on else off
                 Kind.ALERTS -> if (host.options.alerts) on else off
-                Kind.LANGUAGE, Kind.BLOCKS -> value(item.kind)
+                Kind.LANGUAGE, Kind.BLOCKS, Kind.SERVERS -> value(item.kind)
                 else -> item.choices.getOrElse(selected(item.kind)) { "" }
             }
             "${item.title}: $v"
@@ -140,7 +142,7 @@ class SettingsPage(context: Context, host: Host) : Page(context, host) {
                     switch(canvas, right, box.centerY(), rh * 0.4f, on)
                     room -= rh * 0.4f * 1.9f + rh * 0.3f
                 }
-                Kind.LANGUAGE, Kind.BLOCKS -> {
+                Kind.LANGUAGE, Kind.BLOCKS, Kind.SERVERS -> {
                     forward(canvas, right, box.centerY(), rh * 0.09f)
                     text.typeface = regular
                     text.textSize = rh * 0.24f
@@ -227,6 +229,7 @@ class SettingsPage(context: Context, host: Host) : Page(context, host) {
         when (item.kind) {
             Kind.LANGUAGE -> host.open(LanguagePage(context, host))
             Kind.BLOCKS -> host.open(BlocksPage(context, host))
+            Kind.SERVERS -> host.open(ServersPage(context, host))
             Kind.WIFI -> host.options = o.copy(lan = !o.lan)
             Kind.ALERTS -> host.options = o.copy(alerts = !o.alerts)
             else -> {

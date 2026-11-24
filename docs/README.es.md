@@ -80,6 +80,9 @@ nada, quita Deskstats de la lista (−) y vuelve a añadir `~/Applications/Desks
 - **El engranaje** abre los ajustes: idioma (8 idiomas), tema (oscuro, claro, neón),
   orientación (horizontal, vertical, auto), los bloques de la pantalla principal, conexión por
   Wi‑Fi, notificaciones del Mac, intervalo de actualización y actualización del tiempo.
+- **Varios Mac**: conecta el teléfono por cable a cada Mac una vez y los recordará todos. Desliza
+  la pantalla principal a la izquierda o a la derecha para cambiar; los puntos de arriba muestran
+  qué Mac se ve. La lista (× para olvidar un Mac) está en los ajustes, en Macs.
 - **Atrás** cierra una página; una página desatendida se cierra sola al cabo de unos minutos.
 
 Para evitar el quemado de pantalla, la imagen se desplaza unos píxeles cada dos minutos y la

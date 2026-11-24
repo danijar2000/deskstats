@@ -77,6 +77,13 @@
     <string name="places_a11y">已选：%1$s。城市：%2$s</string>
     <string name="none">无</string>
     <string name="places_empty">添加一个城市：时钟和天气将以它为准。</string>
+    <string name="servers_title">Mac 电脑</string>
+    <string name="server_unnamed">Mac %1$d</string>
+    <string name="servers_wifi">Wi‑Fi：%1$s</string>
+    <string name="servers_no_wifi">Wi‑Fi：尚未找到</string>
+    <string name="servers_hint">要添加 Mac，请用数据线将手机连接到它一次。在主屏幕上向左或向右滑动即可在 Mac 之间切换。</string>
+    <string name="servers_removed">已从列表中移除 %1$s</string>
+    <string name="servers_a11y">当前显示：%1$s。Mac：%2$s</string>
     <string name="city_a11y">城市（%1$d），按地区：%2$s</string>
     <string name="region_kyrgyzstan">吉尔吉斯斯坦</string>
     <string name="region_central_asia">中亚</string>

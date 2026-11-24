@@ -24,18 +24,17 @@ class ConfigActivity : Activity() {
     }
 
     private fun store(prefs: android.content.SharedPreferences): Pair<Int, Int>? {
-        if (Build.VERSION.SDK_INT < 16 && !prefs.getString(Settings.TOKEN, null).isNullOrEmpty()) {
-            return R.string.config_token_kept to 0
-        }
         val port = intent.getIntExtra("port", prefs.getInt(Settings.USB_PORT, Settings.DEFAULT_PORT))
         val token = intent.getStringExtra("token")?.trim()
         if (port !in 1..65535) return R.string.config_bad_port to port
-        if (token != null && (token.length !in 32..128 || !token.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' })) {
-            return R.string.config_bad_token to 0
+        if (token != null && !Servers.validToken(token)) return R.string.config_bad_token to 0
+        // Before Android 4.1 any app may start this activity, so once a Mac is paired only that Mac is listened to.
+        val known = Servers.load(prefs).list
+        if (Build.VERSION.SDK_INT < 16 && known.isNotEmpty() && (token == null || known.none { it.id == Server.idOf(token) })) {
+            return R.string.config_token_kept to 0
         }
-        val edit = prefs.edit().putInt(Settings.USB_PORT, port)
-        if (token != null) edit.putString(Settings.TOKEN, token)
-        edit.commit()
+        if (token != null) Servers.update(prefs) { it.withToken(token) }
+        prefs.edit().putInt(Settings.USB_PORT, port).commit()
         return null
     }
 }

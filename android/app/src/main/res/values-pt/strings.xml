@@ -77,6 +77,13 @@
     <string name="places_a11y">Selecionada: %1$s. Cidades: %2$s</string>
     <string name="none">nenhuma</string>
     <string name="places_empty">Adicione uma cidade: o relógio e o clima a seguem.</string>
+    <string name="servers_title">Macs</string>
+    <string name="server_unnamed">Mac %1$d</string>
+    <string name="servers_wifi">Wi‑Fi: %1$s</string>
+    <string name="servers_no_wifi">Wi‑Fi: ainda não encontrado</string>
+    <string name="servers_hint">Para adicionar um Mac, ligue o telefone a ele com o cabo uma vez. No ecrã principal, deslize para a esquerda ou para a direita para alternar entre os Macs.</string>
+    <string name="servers_removed">%1$s removido da lista</string>
+    <string name="servers_a11y">Mostrado: %1$s. Macs: %2$s</string>
     <string name="city_a11y">Cidades (%1$d) por região: %2$s</string>
     <string name="region_kyrgyzstan">Quirguistão</string>
     <string name="region_central_asia">Ásia Central</string>

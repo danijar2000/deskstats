@@ -80,6 +80,9 @@ chegar, remova o Deskstats da lista (−) e adicione `~/Applications/Deskstats.a
 - **A engrenagem** abre os ajustes: idioma (8 idiomas), tema (escuro, claro, neon),
   orientação (paisagem, retrato, auto), os blocos da tela principal, conexão por Wi‑Fi,
   notificações do Mac, intervalo de atualização e atualização do clima.
+- **Vários Macs**: ligue o telefone por cabo a cada Mac uma vez e ele lembra-se de todos. Deslize
+  o ecrã principal para a esquerda ou para a direita para alternar; os pontos no topo mostram qual
+  Mac está à vista. A lista (× para esquecer um Mac) está nos ajustes, em Macs.
 - **Voltar** fecha uma página; uma página sem uso fecha sozinha depois de alguns minutos.
 
 Para evitar marcas na tela, a imagem se desloca alguns pixels a cada dois minutos e a tela

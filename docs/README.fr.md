@@ -83,6 +83,9 @@ que rien n'arrive, retirez Deskstats de la liste (−) puis ajoutez à nouveau
 - **L'engrenage** ouvre les réglages : langue (8 langues), thème (sombre, clair, néon),
   orientation (paysage, portrait, auto), blocs de l'écran principal, connexion Wi‑Fi,
   notifications du Mac, intervalle d'actualisation et actualisation de la météo.
+- **Plusieurs Mac** : branchez le téléphone une fois par câble à chaque Mac, il les retient tous.
+  Balayez l'écran principal vers la gauche ou la droite pour changer ; les points en haut indiquent
+  le Mac affiché. La liste (× pour oublier un Mac) est dans les réglages, rubrique Mac.
 - **Retour** ferme une page ; une page laissée sans interaction se ferme seule au bout de
   quelques minutes.
 

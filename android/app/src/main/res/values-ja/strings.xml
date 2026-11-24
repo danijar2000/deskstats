@@ -77,6 +77,13 @@
     <string name="places_a11y">選択中：%1$s。都市：%2$s</string>
     <string name="none">なし</string>
     <string name="places_empty">都市を追加してください：時計と天気がその都市に合わせて表示されます。</string>
+    <string name="servers_title">Mac</string>
+    <string name="server_unnamed">Mac %1$d</string>
+    <string name="servers_wifi">Wi‑Fi：%1$s</string>
+    <string name="servers_no_wifi">Wi‑Fi：まだ見つかりません</string>
+    <string name="servers_hint">Mac を追加するには、一度ケーブルで電話をその Mac に接続します。メイン画面で左右にスワイプすると Mac を切り替えられます。</string>
+    <string name="servers_removed">%1$s をリストから削除しました</string>
+    <string name="servers_a11y">表示中：%1$s。Mac：%2$s</string>
     <string name="city_a11y">都市（%1$d）、地域別：%2$s</string>
     <string name="region_kyrgyzstan">キルギス</string>
     <string name="region_central_asia">中央アジア</string>
