@@ -2,31 +2,26 @@ package app.deskstats
 
 import android.content.SharedPreferences
 
-/** A part of the main screen; blocks are ordered within their zone. */
-enum class Zone(val title: String) {
-    LEFT("Слева"),
-    RIGHT("Справа"),
-    ROW("Нижний ряд"),
+enum class Zone(val landscape: Int, val portrait: Int) {
+    LEFT(R.string.zone_left, R.string.zone_top),
+    RIGHT(R.string.zone_right, R.string.zone_middle),
+    ROW(R.string.zone_row, R.string.zone_bottom),
 }
 
-/** A block of the main screen. [zone] says where it lives. */
-enum class Block(val id: String, val title: String, val zone: Zone, val note: String) {
-    CLOCK("clock", "Часы и дата", Zone.LEFT, "Время телефона в выбранном часовом поясе"),
-    WEATHER("weather", "Погода", Zone.LEFT, "Погода в выбранном городе"),
-    ALERTS("alerts", "Уведомления", Zone.RIGHT, "Уведомления Mac и iPhone"),
-    BATTERIES("batteries", "Заряд устройств", Zone.RIGHT, "Мышь, клавиатура, трекпад"),
-    CPU("cpu", "CPU", Zone.ROW, "Загрузка процессора"),
-    GPU("gpu", "GPU", Zone.ROW, "Загрузка видеоядра"),
-    RAM("ram", "RAM", Zone.ROW, "Занятая память"),
-    NET("net", "Сеть", Zone.ROW, "Скорость сети"),
+enum class Block(val id: String, val title: Int, val zone: Zone, val note: Int) {
+    CLOCK("clock", R.string.block_clock, Zone.LEFT, R.string.block_clock_note),
+    WEATHER("weather", R.string.block_weather, Zone.LEFT, R.string.block_weather_note),
+    ALERTS("alerts", R.string.block_alerts, Zone.RIGHT, R.string.block_alerts_note),
+    BATTERIES("batteries", R.string.block_batteries, Zone.RIGHT, R.string.block_batteries_note),
+    CPU("cpu", R.string.cpu, Zone.ROW, R.string.block_cpu_note),
+    GPU("gpu", R.string.gpu, Zone.ROW, R.string.block_gpu_note),
+    RAM("ram", R.string.ram, Zone.ROW, R.string.block_ram_note),
+    NET("net", R.string.network, Zone.ROW, R.string.block_net_note),
 }
 
-/** Which blocks the main screen shows and in what order. Stored as "clock,weather,-alerts,…". */
 class BlockSetup(val order: List<Block>, val hidden: Set<Block>) {
-    /** The visible ones of [group], in the user's order. */
     fun shown(vararg group: Block): List<Block> = order.filter { it in group && it !in hidden }
 
-    /** Puts [block] where [target] is; the blocks between them shift by one. */
     fun moved(block: Block, target: Block): BlockSetup {
         val list = ArrayList(order)
         val to = list.indexOf(target)
@@ -53,7 +48,6 @@ class BlockSetup(val order: List<Block>, val hidden: Set<Block>) {
                 order.add(block)
                 if (part.startsWith("-")) hidden.add(block)
             }
-            // Blocks added in a newer version of the app show up at the end.
             for (block in Block.values()) if (block !in order) order.add(block)
             return BlockSetup(order, hidden)
         }

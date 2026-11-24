@@ -1,12 +1,3 @@
-//! Keeps a phone on USB connected: `adb reverse` for the port and, when the phone shows up and
-//! is not polling, opens the panel with the port and token. Runs in its own thread with
-//! timeouts, so a hung adb never stops the sampling.
-//!
-//! adb is not part of macOS: it comes from a folder the user's programs can write to. So it is
-//! started "disclaimed" — responsible for itself in the eyes of the privacy system — and does
-//! not inherit this server's Full Disk Access. The token reaches it through a file only the
-//! owner can read, not through its arguments, which every user of the Mac could list.
-
 use crate::http::Shared;
 use crate::util::{log, now_ms};
 use std::ffi::{c_char, c_int, c_void, CString};
@@ -15,7 +6,6 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-/// Receives the port and token (it requires the DUMP permission, which only adb's shell has).
 const CONFIG_ACTIVITY: &str = "app.deskstats/.ConfigActivity";
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 const RETRY_MIN: Duration = Duration::from_secs(10);
@@ -40,8 +30,6 @@ extern "C" {
         argv: *const *const c_char,
         envp: *const *const c_char,
     ) -> c_int;
-    /// Makes the child its own "responsible process", so it gets none of the parent's privacy
-    /// permissions. Not in the public headers, but exported by libSystem since macOS 10.14.
     fn responsibility_spawnattrs_setdisclaim(attr: *mut *mut c_void, disclaim: c_int) -> c_int;
     fn _NSGetEnviron() -> *const *const *const c_char;
     fn waitpid(pid: c_int, status: *mut c_int, options: c_int) -> c_int;
@@ -59,8 +47,6 @@ pub fn find() -> Option<String> {
     .find(|p| std::path::Path::new(p).is_file())
 }
 
-/// Runs a program disclaimed, with its input and output in files, and waits at most `timeout`
-/// (then it is killed). Some(true) when it exited with success.
 fn spawn_disclaimed(program: &str, args: &[&str], stdin: &str, stdout: &str, timeout: Duration) -> Option<bool> {
     let c = |s: &str| CString::new(s).ok();
     let (program, stdin, stdout, null) = (c(program)?, c(stdin)?, c(stdout)?, c("/dev/null")?);
@@ -100,7 +86,6 @@ fn spawn_disclaimed(program: &str, args: &[&str], stdin: &str, stdout: &str, tim
                 waitpid(pid, &mut status, 0);
                 return None;
             },
-            // Exited normally (no signal in the low bits) with code 0.
             p if p == pid => return Some(status & 0x7f == 0 && (status >> 8) & 0xff == 0),
             _ => return None,
         }
@@ -109,16 +94,13 @@ fn spawn_disclaimed(program: &str, args: &[&str], stdin: &str, stdout: &str, tim
 
 struct Adb {
     path: String,
-    /// A folder only the owner can enter (the one that holds the token), for adb's input and output.
     dir: String,
 }
 
 impl Adb {
-    /// Runs adb; `input` is what it reads (a script for `adb shell`). Returns its output on success.
     fn run(&self, args: &[&str], input: Option<&str>) -> Option<String> {
         let (stdin, stdout) = (format!("{}/adb-in", self.dir), format!("{}/adb-out", self.dir));
         if let Some(text) = input {
-            // Made anew each time: a link planted in its place is never followed.
             let _ = std::fs::remove_file(&stdin);
             let mut file = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&stdin).ok()?;
             std::io::Write::write_all(&mut file, text.as_bytes()).ok()?;
@@ -130,26 +112,19 @@ impl Adb {
         (done == Some(true)).then_some(out)
     }
 
-    /// Serial numbers of the phones and emulators that are connected and authorised.
     fn devices(&self) -> Vec<String> {
         self.run(&["devices"], None).map(|out| parse_devices(&out)).unwrap_or_default()
     }
 }
 
-/// The serials from the output of `adb devices`: lines `<serial>\tdevice` after the heading.
 pub fn parse_devices(out: &str) -> Vec<String> {
     out.lines().filter_map(|line| line.split_once('\t')).filter(|(_, state)| state.trim() == "device").map(|(serial, _)| serial.trim().to_string()).collect()
 }
 
-/// While the phone does not poll over USB for `idle_after`, sets up `adb reverse` on every
-/// connected device: every 10 seconds at first, backing off to every 2 minutes while no phone
-/// answers. This also runs while the phone polls over Wi-Fi, so plugging the cable in moves it
-/// back to USB. When a phone answers and nobody polls at all, the panel is opened (again every
-/// 5 minutes while it stays so).
-pub fn run(path: String, dir: String, shared: Arc<Shared>, idle_after: Duration) {
+pub fn run(path: String, dir: String, shared: Arc<Shared>) {
     let adb = Adb { path, dir };
     let port = format!("tcp:{}", shared.port);
-    let quiet = |stamp: &std::sync::atomic::AtomicU64| now_ms().saturating_sub(stamp.load(Ordering::Relaxed)) >= idle_after.as_millis() as u64;
+    let quiet = |stamp: &std::sync::atomic::AtomicU64| now_ms().saturating_sub(stamp.load(Ordering::Relaxed)) >= shared.settings.idle_after().as_millis() as u64;
     let mut wait = RETRY_MIN;
     let mut reachable: Option<bool> = None;
     let mut opened: Option<Instant> = None;
@@ -161,7 +136,6 @@ pub fn run(path: String, dir: String, shared: Arc<Shared>, idle_after: Duration)
             wait = RETRY_MIN;
             continue;
         }
-        // With two devices adb refuses a command that does not name one.
         let phones: Vec<String> = adb.devices().into_iter().filter(|serial| adb.run(&["-s", serial, "reverse", &port, &port], None).is_some()).collect();
         let ok = !phones.is_empty();
         if reachable != Some(ok) {

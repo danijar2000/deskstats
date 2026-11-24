@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="status_usb">Mac · USB で接続中</string>
+    <string name="status_wifi">Mac · Wi‑Fi で接続中</string>
+    <string name="status_starting">Mac · 起動中</string>
+    <string name="status_waiting">Mac · データ待ち</string>
+    <string name="status_no_token">Mac · トークンが必要です：USB で接続してください</string>
+    <string name="status_refused">Mac · サーバーが拒否しました（コード %1$d）</string>
+    <string name="status_offline">Mac · 接続なし</string>
+
+    <string name="all_hidden">すべてのブロックが非表示です</string>
+    <string name="all_hidden_hint">角の歯車をタップすると元に戻せます</string>
+    <string name="weather_loading">天気を読み込み中…</string>
+    <string name="weather_unavailable">天気を取得できません</string>
+    <string name="no_city">都市が未選択です</string>
+    <string name="choose_city_hint">タップして都市を選択</string>
+    <string name="feels">体感 %1$s</string>
+    <string name="new_alert">新しい通知</string>
+    <string name="alerts_start">Mac で deskstats を起動し、スマートフォンを USB で接続してください。</string>
+    <string name="alerts_denied">macOS がサーバーに通知の読み取りを許可していません：「フルディスクアクセス」を与えてください。</string>
+    <string name="alerts_server_off">サーバーで通知がオフになっています。</string>
+    <string name="alerts_off">設定で Mac の通知がオフになっています。</string>
+    <string name="alerts_none">新しい通知はありません。</string>
+    <string name="battery_mouse">マウス</string>
+    <string name="battery_keyboard">キーボード</string>
+    <string name="battery_trackpad">トラックパッド</string>
+    <string name="battery_device">デバイス</string>
+    <string name="battery_waiting">Mac が応答すると、マウスとキーボードの残量が表示されます</string>
+    <string name="battery_none">バッテリー付きのワイヤレス機器はありません</string>
+    <string name="gpu_none">GPU データなし</string>
+    <string name="gpu_mem">ビデオメモリ %1$s</string>
+    <string name="net_max">最大 %1$s</string>
+    <string name="network">ネットワーク</string>
+
+    <string name="unit_gb">GB</string>
+    <string name="unit_mb">MB</string>
+    <string name="unit_bs">B/s</string>
+    <string name="unit_kbs">KB/s</string>
+    <string name="unit_mbs">MB/s</string>
+    <string name="fmt_date">M月d日 EEEE</string>
+    <string name="fmt_stamp">M月d日 HH:mm</string>
+    <string name="yesterday_at">昨日 %1$s</string>
+
+    <string name="a11y_waiting">Mac パネル：データ待ち</string>
+    <string name="a11y_stats">CPU %1$s%%、メモリ %2$s / %3$s、受信 %4$s、送信 %5$s</string>
+    <string name="a11y_weather">%1$s：%2$d°</string>
+    <string name="a11y_alert">最新の通知：%1$s、%2$s</string>
+    <string name="a11y_shown">表示</string>
+    <string name="a11y_hidden">非表示</string>
+    <string name="a11y_on">オン</string>
+    <string name="a11y_off">オフ</string>
+
+    <string name="procs_title">アプリ</string>
+    <string name="procs_no_answer">Mac がアプリ一覧の要求に応答しませんでした</string>
+    <string name="procs_refused">Mac がアプリ一覧を返しませんでした（コード %1$d）</string>
+    <string name="procs_loading">Mac がデータを収集中…</string>
+    <string name="no_connection">Mac に接続されていません</string>
+    <string name="procs_net_idle">現在ネットワークを使っているアプリはありません</string>
+    <string name="procs_gpu_idle">現在 GPU を使っているアプリはありません</string>
+    <string name="no_data">データなし</string>
+    <string name="procs_shown">%2$d 件中の最初の %1$d 件を表示</string>
+    <string name="procs_net">ネットワーク %1$s</string>
+    <string name="procs_count">プロセス：%1$d</string>
+    <string name="procs_cores">コア：%1$s</string>
+    <string name="procs_a11y_loading">%1$s 負荷順の一覧を読み込み中</string>
+    <string name="procs_a11y">%1$s 負荷順：%2$s</string>
+
+    <string name="alerts_page_waiting">データ待ち…</string>
+    <string name="alerts_page_none">過去 2 日間の通知はありません</string>
+    <string name="alerts_page_denied">macOS がサーバーに通知の読み取りを許可していません</string>
+    <string name="alerts_a11y">全 %1$d 件。選択中：%2$s、%3$s。%4$s</string>
+
+    <string name="places_title">タイムゾーンと都市</string>
+    <string name="add_city">都市を追加</string>
+    <string name="places_removed">%1$s を一覧から削除しました</string>
+    <string name="undo">元に戻す</string>
+    <string name="places_a11y">選択中：%1$s。都市：%2$s</string>
+    <string name="none">なし</string>
+    <string name="places_empty">都市を追加してください：時計と天気がその都市に合わせて表示されます。</string>
+    <string name="city_a11y">都市（%1$d）、地域別：%2$s</string>
+    <string name="region_kyrgyzstan">キルギス</string>
+    <string name="region_central_asia">中央アジア</string>
+    <string name="region_russia">ロシア</string>
+    <string name="region_caucasus">コーカサスとトルコ</string>
+    <string name="region_middle_east">中東</string>
+    <string name="region_europe">ヨーロッパ</string>
+    <string name="region_asia">アジア</string>
+    <string name="region_oceania">オーストラリアとオセアニア</string>
+    <string name="region_africa">アフリカ</string>
+    <string name="region_america">アメリカ大陸</string>
+
+    <string name="blocks_title">メイン画面のブロック</string>
+    <string name="blocks_hint">左のハンドルで行をドラッグすると順序を変更できます</string>
+    <string name="blocks_shown">表示：%1$d/%2$d</string>
+    <string name="zone_left">左</string>
+    <string name="zone_right">右</string>
+    <string name="zone_row">下段</string>
+    <string name="zone_top">上部</string>
+    <string name="zone_middle">中央</string>
+    <string name="zone_bottom">下部</string>
+    <string name="block_clock">時計と日付</string>
+    <string name="block_clock_note">選択したタイムゾーンでのスマートフォンの時刻</string>
+    <string name="block_weather">天気</string>
+    <string name="block_weather_note">選択した都市の天気</string>
+    <string name="block_alerts">通知</string>
+    <string name="block_alerts_note">Mac と iPhone の通知</string>
+    <string name="block_batteries">デバイスのバッテリー</string>
+    <string name="block_batteries_note">マウス、キーボード、トラックパッド</string>
+    <string name="block_cpu_note">プロセッサの負荷</string>
+    <string name="block_gpu_note">グラフィックスの負荷</string>
+    <string name="block_ram_note">使用中のメモリ</string>
+    <string name="block_net_note">ネットワーク速度</string>
+
+    <string name="settings_title">設定</string>
+    <string name="group_look">表示</string>
+    <string name="group_mac">サーバー</string>
+    <string name="set_language">言語</string>
+    <string name="lang_system">システム</string>
+    <string name="lang_system_named">システム（%1$s）</string>
+    <string name="set_theme">テーマ</string>
+    <string name="theme_dark">ダーク</string>
+    <string name="theme_light">ライト</string>
+    <string name="theme_neon">ネオン</string>
+    <string name="set_orientation">画面の向き</string>
+    <string name="orient_landscape">横向き</string>
+    <string name="orient_portrait">縦向き</string>
+    <string name="orient_auto">自動</string>
+    <string name="set_wifi">Wi‑Fi 接続</string>
+    <string name="set_wifi_hint">ケーブルなしで Mac に接続するには、Mac と同じ Wi‑Fi が必要です</string>
+    <string name="set_alerts">Mac の通知</string>
+    <string name="set_alerts_hint">Mac の通知をパネルに表示</string>
+    <string name="set_interval">更新間隔</string>
+    <string name="set_weather">天気の更新</string>
+    <string name="fmt_seconds">%1$s 秒</string>
+    <string name="fmt_minutes">%1$d 分</string>
+    <string name="fmt_hours">%1$d 時間</string>
+    <string name="version">バージョン %1$s</string>
+
+    <string name="config_problem">DeskStats：%1$s</string>
+    <string name="config_token_kept">トークンは保存済みです。再ペアリングするにはアプリのデータを消去してください</string>
+    <string name="config_bad_port">ポート %1$d は無効です</string>
+    <string name="config_bad_token">トークンが無効です：16 進数で 32〜128 文字が必要です</string>
+
+    <string-array name="weather">
+        <item>快晴</item>
+        <item>晴れ</item>
+        <item>晴れ時々曇り</item>
+        <item>曇り</item>
+        <item>霧</item>
+        <item>霧雨</item>
+        <item>雨</item>
+        <item>雪</item>
+        <item>にわか雨</item>
+        <item>降雪</item>
+        <item>雷雨</item>
+        <item>曇り</item>
+    </string-array>
+</resources>

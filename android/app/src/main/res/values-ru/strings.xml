@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="status_usb">Mac · на связи по USB</string>
+    <string name="status_wifi">Mac · на связи по Wi‑Fi</string>
+    <string name="status_starting">Mac · запуск</string>
+    <string name="status_waiting">Mac · ожидание данных</string>
+    <string name="status_no_token">Mac · нужен токен: подключите телефон по USB</string>
+    <string name="status_refused">Mac · сервер отказал (код %1$d)</string>
+    <string name="status_offline">Mac · нет связи</string>
+
+    <string name="all_hidden">Все блоки скрыты</string>
+    <string name="all_hidden_hint">Нажмите на шестерёнку в углу, чтобы вернуть их</string>
+    <string name="weather_loading">Погода загружается…</string>
+    <string name="weather_unavailable">Погода недоступна</string>
+    <string name="no_city">Город не выбран</string>
+    <string name="choose_city_hint">Нажмите, чтобы выбрать город</string>
+    <string name="feels">ощущ. %1$s</string>
+    <string name="new_alert">Новое уведомление</string>
+    <string name="alerts_start">Запустите deskstats на Mac и подключите телефон по USB.</string>
+    <string name="alerts_denied">macOS не даёт серверу читать уведомления: выдайте ему «Полный доступ к диску».</string>
+    <string name="alerts_server_off">Уведомления на сервере выключены.</string>
+    <string name="alerts_off">Уведомления Mac выключены в настройках.</string>
+    <string name="alerts_none">Новых уведомлений нет.</string>
+    <string name="battery_mouse">Мышь</string>
+    <string name="battery_keyboard">Клавиатура</string>
+    <string name="battery_trackpad">Трекпад</string>
+    <string name="battery_device">Устройство</string>
+    <string name="battery_waiting">Заряд мыши и клавиатуры появится, когда ответит Mac</string>
+    <string name="battery_none">Нет беспроводных устройств с зарядом</string>
+    <string name="gpu_none">нет данных о видеоядре</string>
+    <string name="gpu_mem">видеопамять %1$s</string>
+    <string name="net_max">макс %1$s</string>
+    <string name="network">Сеть</string>
+
+    <string name="unit_gb">ГБ</string>
+    <string name="unit_mb">МБ</string>
+    <string name="unit_bs">Б/с</string>
+    <string name="unit_kbs">КБ/с</string>
+    <string name="unit_mbs">МБ/с</string>
+    <string name="fmt_date">EEEE, d MMMM</string>
+    <string name="fmt_stamp">d MMM HH:mm</string>
+    <string name="yesterday_at">вчера %1$s</string>
+
+    <string name="a11y_waiting">Панель Mac: ожидание данных</string>
+    <string name="a11y_stats">Процессор %1$s%%, память %2$s из %3$s, загрузка %4$s, отдача %5$s</string>
+    <string name="a11y_weather">%1$s: %2$d°</string>
+    <string name="a11y_alert">Последнее уведомление: %1$s, %2$s</string>
+    <string name="a11y_shown">показан</string>
+    <string name="a11y_hidden">скрыт</string>
+    <string name="a11y_on">включено</string>
+    <string name="a11y_off">выключено</string>
+
+    <string name="procs_title">Приложения</string>
+    <string name="procs_no_answer">Mac не ответил на запрос списка приложений</string>
+    <string name="procs_refused">Mac не отдал список приложений (код %1$d)</string>
+    <string name="procs_loading">Mac собирает данные…</string>
+    <string name="no_connection">Нет связи с Mac</string>
+    <string name="procs_net_idle">Сейчас сетью никто не пользуется</string>
+    <string name="procs_gpu_idle">Сейчас видеоядро никто не нагружает</string>
+    <string name="no_data">Нет данных</string>
+    <string name="procs_shown">Показаны первые %1$d из %2$d</string>
+    <string name="procs_net">сеть %1$s</string>
+    <string name="procs_count">процессов: %1$d</string>
+    <string name="procs_cores">ядер: %1$s</string>
+    <string name="procs_a11y_loading">Список по нагрузке %1$s загружается</string>
+    <string name="procs_a11y">По нагрузке %1$s: %2$s</string>
+
+    <string name="alerts_page_waiting">Ожидание данных…</string>
+    <string name="alerts_page_none">Уведомлений за двое суток нет</string>
+    <string name="alerts_page_denied">macOS не даёт серверу читать уведомления</string>
+    <string name="alerts_a11y">Всего %1$d. Выбрано: %2$s, %3$s. %4$s</string>
+
+    <string name="places_title">Часовой пояс и город</string>
+    <string name="add_city">Добавить город</string>
+    <string name="places_removed">Город «%1$s» убран из списка</string>
+    <string name="undo">Вернуть</string>
+    <string name="places_a11y">Выбрано: %1$s. Города: %2$s</string>
+    <string name="none">нет</string>
+    <string name="places_empty">Добавьте город: по нему идут часы и погода.</string>
+    <string name="city_a11y">Города (%1$d) по регионам: %2$s</string>
+    <string name="region_kyrgyzstan">Кыргызстан</string>
+    <string name="region_central_asia">Центральная Азия</string>
+    <string name="region_russia">Россия</string>
+    <string name="region_caucasus">Кавказ и Турция</string>
+    <string name="region_middle_east">Ближний Восток</string>
+    <string name="region_europe">Европа</string>
+    <string name="region_asia">Азия</string>
+    <string name="region_oceania">Австралия и Океания</string>
+    <string name="region_africa">Африка</string>
+    <string name="region_america">Америка</string>
+
+    <string name="blocks_title">Блоки главного экрана</string>
+    <string name="blocks_hint">Порядок меняется перетаскиванием за значок слева</string>
+    <string name="blocks_shown">Показано: %1$d/%2$d</string>
+    <string name="zone_left">Слева</string>
+    <string name="zone_right">Справа</string>
+    <string name="zone_row">Нижний ряд</string>
+    <string name="zone_top">Сверху</string>
+    <string name="zone_middle">Посередине</string>
+    <string name="zone_bottom">Снизу</string>
+    <string name="block_clock">Часы и дата</string>
+    <string name="block_clock_note">Время телефона в выбранном часовом поясе</string>
+    <string name="block_weather">Погода</string>
+    <string name="block_weather_note">Погода в выбранном городе</string>
+    <string name="block_alerts">Уведомления</string>
+    <string name="block_alerts_note">Уведомления Mac и iPhone</string>
+    <string name="block_batteries">Заряд устройств</string>
+    <string name="block_batteries_note">Мышь, клавиатура, трекпад</string>
+    <string name="block_cpu_note">Загрузка процессора</string>
+    <string name="block_gpu_note">Загрузка видеоядра</string>
+    <string name="block_ram_note">Занятая память</string>
+    <string name="block_net_note">Скорость сети</string>
+
+    <string name="settings_title">Настройки</string>
+    <string name="group_look">Внешний вид</string>
+    <string name="group_mac">Сервер</string>
+    <string name="set_language">Язык</string>
+    <string name="lang_system">Системный</string>
+    <string name="lang_system_named">Системный (%1$s)</string>
+    <string name="set_theme">Тема</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_neon">Неон</string>
+    <string name="set_orientation">Ориентация</string>
+    <string name="orient_landscape">Альбомная</string>
+    <string name="orient_portrait">Книжная</string>
+    <string name="orient_auto">Авто</string>
+    <string name="set_wifi">Связь по Wi‑Fi</string>
+    <string name="set_wifi_hint">Без кабеля телефон связывается с Mac через его сеть Wi‑Fi</string>
+    <string name="set_alerts">Уведомления Mac</string>
+    <string name="set_alerts_hint">Показывать уведомления Mac на панели</string>
+    <string name="set_interval">Обновлять каждые</string>
+    <string name="set_weather">Обновление погоды</string>
+    <string name="fmt_seconds">%1$s с</string>
+    <string name="fmt_minutes">%1$d мин</string>
+    <string name="fmt_hours">%1$d ч</string>
+    <string name="version">Версия %1$s</string>
+
+    <string name="config_problem">DeskStats: %1$s</string>
+    <string name="config_token_kept">токен уже сохранён; чтобы связать заново, очистите данные приложения</string>
+    <string name="config_bad_port">порт %1$d не подходит</string>
+    <string name="config_bad_token">токен не подходит: нужно от 32 до 128 шестнадцатеричных знаков</string>
+
+    <string-array name="weather">
+        <item>Ясно</item>
+        <item>Малооблачно</item>
+        <item>Переменная облачность</item>
+        <item>Пасмурно</item>
+        <item>Туман</item>
+        <item>Морось</item>
+        <item>Дождь</item>
+        <item>Снег</item>
+        <item>Ливень</item>
+        <item>Снегопад</item>
+        <item>Гроза</item>
+        <item>Облачно</item>
+    </string-array>
+</resources>

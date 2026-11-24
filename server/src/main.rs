@@ -1,15 +1,3 @@
-//! deskstats: serves the load of this Mac (CPU, GPU, RAM, network), the battery level of its
-//! wireless mouse and keyboard, the weather and the recent notifications as JSON for a phone
-//! on the desk.
-//!
-//! A phone on USB reaches the server through `adb reverse` (set up by the server while nobody
-//! polls). Its requests and the answers are sealed with keys from a token (see http.rs); while
-//! it shows the list of applications it also asks for them (see procs.rs).
-//! The token lives in ~/Library/Application Support/deskstats/token (created on the first
-//! start) and reaches the phone over USB, once. With `--lan` the server also answers on Wi-Fi,
-//! and a signed UDP beacon tells the phone the Mac's address. Android before 5.0 has no
-//! `adb reverse` and can only use Wi-Fi.
-
 mod adb;
 mod alerts;
 mod crypto;
@@ -19,6 +7,7 @@ mod lan;
 mod power;
 mod procs;
 mod sampler;
+mod settings;
 mod util;
 mod weather;
 
@@ -31,102 +20,19 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use util::{json_escape, log, now_ms};
 
-/// CPU ticks, network counters and when they were read.
+const PORT: u16 = 8787;
+
 type Counters = (Vec<(u64, u64)>, std::collections::HashMap<String, (u64, u64)>, Instant);
 
-/// The log launchd writes; cut at startup when it has grown past this.
-const LOG_LIMIT: u64 = 1024 * 1024;
-
-struct Options {
-    interval: Duration,
-    port: u16,
-    city: Option<String>,
-    weather_every: Duration,
-    alerts: bool,
-    lan: bool,
-    adb: bool,
-    ax_dump: bool,
-    check: bool,
-}
-
-const USAGE: &str = "\
-usage: deskstats [--interval <seconds>] [--port <port>] [--city <name>] [--weather-hours <hours>]
-                 [--no-alerts] [--lan] [--no-adb] [--ax-dump] [--check]
-  --interval       how often to sample the load, in seconds (0.2 to 3600, default 1)
-  --port           port to listen on (default 8787)
-  --city           the weather shown until a city is picked on the phone, e.g. \"Bishkek\"
-  --weather-hours  how often to ask for the weather, in hours (0.25 to 168, default 1)
-  --no-alerts      do not serve notifications
-  --lan            also answer on Wi-Fi and announce this Mac to the phone
-  --no-adb         do not set up `adb reverse` for a phone on USB
-  --ax-dump        write the Notification Center element tree (it holds notification texts)
-                   to ~/Library/Logs/deskstats-ax.log
-  --check          only check the options and exit
-  --help           show this";
-
-fn usage(problem: &str) -> ! {
-    eprintln!("deskstats: {problem}");
-    eprintln!("{USAGE}");
-    std::process::exit(2);
-}
-
-fn parse_options() -> Options {
-    let mut o = Options {
-        interval: Duration::from_secs(1),
-        port: 8787,
-        city: None,
-        weather_every: Duration::from_secs(3600),
-        alerts: true,
-        lan: false,
-        adb: true,
-        ax_dump: false,
-        check: false,
-    };
-    let mut args = std::env::args().skip(1);
-    let seconds = |value: Option<String>, min: f64, max: f64, name: &str| -> Duration {
-        let v: f64 = value.and_then(|v| v.parse().ok()).unwrap_or_else(|| usage(&format!("{name} needs a number")));
-        if !(min..=max).contains(&v) {
-            usage(&format!("{name} must be between {min} and {max}"));
-        }
-        Duration::from_secs_f64(v)
-    };
-    while let Some(arg) = args.next() {
-        match arg.as_str() {
-            "--interval" => o.interval = seconds(args.next(), 0.2, 3600.0, "--interval"),
-            "--weather-hours" => o.weather_every = seconds(args.next(), 0.25, 168.0, "--weather-hours") * 3600,
-            "--port" => o.port = args.next().and_then(|v| v.parse().ok()).filter(|p| *p > 0).unwrap_or_else(|| usage("--port needs a port number")),
-            // A name that starts with "--" is the next option: the name was forgotten.
-            "--city" => {
-                let valid = |v: &String| !v.trim().is_empty() && !v.contains('\0') && !v.starts_with("--");
-                o.city = Some(args.next().filter(valid).unwrap_or_else(|| usage("--city needs a name")))
-            }
-            "--no-alerts" => o.alerts = false,
-            "--lan" => o.lan = true,
-            "--no-adb" => o.adb = false,
-            "--ax-dump" => o.ax_dump = true,
-            "--check" => o.check = true,
-            "--help" | "-h" => {
-                println!("{USAGE}");
-                std::process::exit(0);
-            }
-            other => usage(&format!("unknown option {other}")),
-        }
-    }
-    o
-}
-
-/// The folder of the token, which only the owner can enter.
 fn data_dir() -> String {
     format!("{}/Library/Application Support/deskstats", std::env::var("HOME").unwrap_or_default())
 }
 
-/// The shared secret of the server and the phone, created once with 0600 permissions.
 fn load_token() -> std::io::Result<String> {
     let dir = data_dir();
     let path = format!("{dir}/token");
     if let Ok(token) = fs::read_to_string(&path) {
         let token = token.trim().to_string();
-        // The phone takes 32 to 128 characters.
         if (32..=128).contains(&token.len()) && token.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Ok(token);
         }
@@ -142,7 +48,6 @@ fn load_token() -> std::io::Result<String> {
     Ok(token)
 }
 
-/// Starts a named thread; false (and a log line) when the system refuses.
 fn spawn(name: &str, work: impl FnOnce() + Send + 'static) -> bool {
     let started = std::thread::Builder::new().name(name.into()).spawn(work).is_ok();
     if !started {
@@ -151,7 +56,6 @@ fn spawn(name: &str, work: impl FnOnce() + Send + 'static) -> bool {
     started
 }
 
-/// Sleeps in short steps, so a request to stop is noticed at once however long the interval.
 fn nap(time: Duration) {
     let until = Instant::now() + time;
     while !power::stopping() {
@@ -163,12 +67,10 @@ fn nap(time: Duration) {
     }
 }
 
-/// What one sample measured, besides the notifications.
 struct Load<'a> {
     ts: u64,
     interval_ms: u128,
     mac: &'a str,
-    /// Already escaped for JSON.
     cpu_name: &'a str,
     cpu_pct: f64,
     gpu: Option<(f64, u64)>,
@@ -176,11 +78,9 @@ struct Load<'a> {
     ram_total: u64,
     down_bps: f64,
     up_bps: f64,
-    /// A JSON array.
     batteries: &'a str,
 }
 
-/// The sample's JSON up to the notifications (see http::Sample).
 fn head_json(l: &Load) -> String {
     let gpu = match l.gpu {
         Some((pct, mem)) => format!("{{\"pct\":{pct:.0},\"mem_used\":{mem}}}"),
@@ -193,7 +93,6 @@ fn head_json(l: &Load) -> String {
     )
 }
 
-/// `"alerts":[…],` with at most `count` notifications; `"alerts":null,` when no source can be read.
 fn alerts_json(list: Option<&[alerts::Item]>, count: usize) -> String {
     match list {
         Some(items) => format!("\"alerts\":[{}],", items.iter().take(count).map(alerts::Item::json).collect::<Vec<_>>().join(",")),
@@ -202,17 +101,10 @@ fn alerts_json(list: Option<&[alerts::Item]>, count: usize) -> String {
 }
 
 fn main() {
-    // Not an option for people: the server asks a fresh copy of itself (see alerts.rs).
     if std::env::args().nth(1).as_deref() == Some("--ax-check") {
         println!("{}", if alerts::accessibility_granted() { "yes" } else { "no" });
         return;
     }
-    let o = parse_options();
-    if o.check {
-        println!("ok");
-        return;
-    }
-    util::trim_log(&format!("{}/Library/Logs/deskstats.log", std::env::var("HOME").unwrap_or_default()), LOG_LIMIT);
     let token = match load_token() {
         Ok(t) => t,
         Err(e) => {
@@ -220,53 +112,37 @@ fn main() {
             std::process::exit(1);
         }
     };
-    // With --lan the socket is open to every interface; which connections are served is
-    // decided as they arrive (see http::Shared::arrived_on_own_network).
-    let host = if o.lan { "0.0.0.0" } else { "127.0.0.1" };
-    let listener = match TcpListener::bind((host, o.port)) {
+    let listener = match TcpListener::bind(("0.0.0.0", PORT)) {
         Ok(l) => l,
         Err(e) => {
-            log(&format!("cannot listen on {host}:{}: {e}", o.port));
+            log(&format!("cannot listen on port {PORT}: {e}"));
             std::process::exit(1);
         }
     };
-    log(&format!(
-        "listening on {host}:{}, sampling every {:.1} s{}",
-        o.port,
-        o.interval.as_secs_f64(),
-        o.city.as_ref().map(|c| format!(", weather for \"{c}\"")).unwrap_or_default()
-    ));
+    let settings = Arc::new(settings::Settings::load(format!("{}/settings", data_dir())));
+    log(&format!("listening on port {PORT}"));
 
     power::start();
-    let weather = Arc::new(weather::Weather::new(o.weather_every));
-    let shared = Arc::new(http::Shared::new(token.clone(), o.port, weather.clone()));
+    let weather = Arc::new(weather::Weather::new(Duration::from_secs(settings.weather_min.load(Ordering::Relaxed) * 60)));
+    let shared = Arc::new(http::Shared::new(token.clone(), PORT, weather.clone(), settings.clone()));
     {
         let shared = shared.clone();
-        // Without this thread there is no server.
         if !spawn("accept", move || http::run(listener, shared)) {
             std::process::exit(1);
         }
     }
-    if o.lan {
-        let keys = crypto::Keys::from_token(&token);
-        let port = o.port;
-        spawn("beacon", move || lan::run_beacon(keys, port));
-    }
     {
-        // Also without --city: the phone may pick a place of its own.
-        let city = o.city.clone();
-        spawn("weather", move || weather::run(city, weather));
+        let keys = crypto::Keys::from_token(&token);
+        let settings = settings.clone();
+        spawn("beacon", move || lan::run_beacon(keys, PORT, settings));
     }
-    // Nobody polling for this long means the phone is gone: stop sampling, look for it instead.
-    let idle_after = (o.interval * 3).max(Duration::from_secs(5));
-    if o.adb {
-        match adb::find() {
-            Some(path) => {
-                let shared = shared.clone();
-                spawn("adb", move || adb::run(path, data_dir(), shared, idle_after));
-            }
-            None => log("adb: not found, the phone has to be connected by hand"),
+    spawn("weather", move || weather::run(weather));
+    match adb::find() {
+        Some(path) => {
+            let shared = shared.clone();
+            spawn("adb", move || adb::run(path, data_dir(), shared));
         }
+        None => log("adb: not found, the phone has to be connected by hand"),
     }
 
     let machine = sampler::Host::new();
@@ -275,30 +151,26 @@ fn main() {
     let page_size = sampler::sysctl_u64("hw.pagesize").max(4096);
     let gpu = sampler::Gpu::new();
     let mut batteries = sampler::Batteries::new();
-    let serve_alerts = o.alerts;
     let mut database = alerts::Database::new();
-    let mut screen = alerts::Screen::new(o.ax_dump);
+    let mut screen = alerts::Screen::new();
 
     let mut prev: Option<Counters> = None;
     loop {
         if power::stopping() {
-            // Shutdown, logout or launchctl stop: let the phone see "sleep" before going away.
             log("stopping: telling the phone the Mac goes away");
             power::wait_for_poll(now_ms());
             std::process::exit(0);
         }
         shared.procs.forget_when_idle();
+        let interval = settings.interval();
         let last = shared.last_request_ms.load(Ordering::Relaxed);
-        let active = last != 0 && now_ms().saturating_sub(last) <= idle_after.as_millis() as u64;
+        let active = last != 0 && now_ms().saturating_sub(last) <= settings.idle_after().as_millis() as u64;
         if !active {
-            // Paused while nobody polls. The sample is dropped, so the next poll gets "starting"
-            // (503) instead of stale numbers, and the next sample is measured from fresh counters
-            // rather than averaged over the whole pause.
+            // The sample is dropped so that the next poll gets 503, not numbers from before the pause.
             if prev.take().is_some() {
                 *shared.sample.lock().unwrap_or_else(|e| e.into_inner()) = None;
             }
-            // Short naps, so the first numbers are there soon after the phone comes back.
-            nap(o.interval.min(Duration::from_millis(200)));
+            nap(interval.min(Duration::from_millis(200)));
             continue;
         }
         let Some((prev_cpu, prev_net, prev_at)) = prev.take() else {
@@ -314,7 +186,7 @@ fn main() {
         let (rx, tx) = sampler::net_delta(&prev_net, &net);
         let head = head_json(&Load {
             ts: now_ms(),
-            interval_ms: o.interval.as_millis(),
+            interval_ms: interval.as_millis(),
             mac: power::state(),
             cpu_name: &cpu_name,
             cpu_pct: sampler::cpu_percent(&prev_cpu, &cpu),
@@ -325,9 +197,7 @@ fn main() {
             up_bps: tx as f64 / seconds,
             batteries: batteries.refresh(),
         });
-        // "alerts" is absent when they are switched off and null when no source can be read.
-        // Both lengths are kept: which one goes out is the request's choice.
-        let (short, full) = if serve_alerts {
+        let (short, full) = if settings.alerts.load(Ordering::Relaxed) {
             let on_screen = screen.refresh();
             let list = match database.refresh() {
                 Some(rows) => Some(alerts::merge(rows, on_screen, now_ms())),
@@ -340,7 +210,7 @@ fn main() {
         };
         *shared.sample.lock().unwrap_or_else(|e| e.into_inner()) = Some(http::Sample { head, alerts: short, alerts_full: full });
         prev = Some((cpu, net, at));
-        nap(o.interval.saturating_sub(at.elapsed()));
+        nap(interval.saturating_sub(at.elapsed()));
     }
 }
 

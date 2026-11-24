@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="status_usb">Mac · 已通过 USB 连接</string>
+    <string name="status_wifi">Mac · 已通过 Wi‑Fi 连接</string>
+    <string name="status_starting">Mac · 正在启动</string>
+    <string name="status_waiting">Mac · 等待数据</string>
+    <string name="status_no_token">Mac · 需要令牌：请用 USB 连接手机</string>
+    <string name="status_refused">Mac · 服务器拒绝（代码 %1$d）</string>
+    <string name="status_offline">Mac · 未连接</string>
+
+    <string name="all_hidden">所有区块都已隐藏</string>
+    <string name="all_hidden_hint">点按角落的齿轮即可恢复</string>
+    <string name="weather_loading">正在加载天气…</string>
+    <string name="weather_unavailable">天气不可用</string>
+    <string name="no_city">未选择城市</string>
+    <string name="choose_city_hint">点按以选择城市</string>
+    <string name="feels">体感 %1$s</string>
+    <string name="new_alert">新通知</string>
+    <string name="alerts_start">请在 Mac 上启动 deskstats，并用 USB 连接手机。</string>
+    <string name="alerts_denied">macOS 不允许服务器读取通知：请授予它“完全磁盘访问权限”。</string>
+    <string name="alerts_server_off">服务器已关闭通知。</string>
+    <string name="alerts_off">已在设置中关闭 Mac 通知。</string>
+    <string name="alerts_none">没有新通知。</string>
+    <string name="battery_mouse">鼠标</string>
+    <string name="battery_keyboard">键盘</string>
+    <string name="battery_trackpad">触控板</string>
+    <string name="battery_device">设备</string>
+    <string name="battery_waiting">Mac 响应后将显示鼠标和键盘的电量</string>
+    <string name="battery_none">没有带电池的无线设备</string>
+    <string name="gpu_none">无 GPU 数据</string>
+    <string name="gpu_mem">显存 %1$s</string>
+    <string name="net_max">最高 %1$s</string>
+    <string name="network">网络</string>
+
+    <string name="unit_gb">GB</string>
+    <string name="unit_mb">MB</string>
+    <string name="unit_bs">B/s</string>
+    <string name="unit_kbs">KB/s</string>
+    <string name="unit_mbs">MB/s</string>
+    <string name="fmt_date">M月d日 EEEE</string>
+    <string name="fmt_stamp">M月d日 HH:mm</string>
+    <string name="yesterday_at">昨天 %1$s</string>
+
+    <string name="a11y_waiting">Mac 面板：等待数据</string>
+    <string name="a11y_stats">CPU %1$s%%，内存 %2$s / %3$s，下载 %4$s，上传 %5$s</string>
+    <string name="a11y_weather">%1$s：%2$d°</string>
+    <string name="a11y_alert">最新通知：%1$s，%2$s</string>
+    <string name="a11y_shown">显示</string>
+    <string name="a11y_hidden">隐藏</string>
+    <string name="a11y_on">开</string>
+    <string name="a11y_off">关</string>
+
+    <string name="procs_title">应用</string>
+    <string name="procs_no_answer">Mac 未响应应用列表请求</string>
+    <string name="procs_refused">Mac 未提供应用列表（代码 %1$d）</string>
+    <string name="procs_loading">Mac 正在收集数据…</string>
+    <string name="no_connection">未连接到 Mac</string>
+    <string name="procs_net_idle">目前没有应用在使用网络</string>
+    <string name="procs_gpu_idle">目前没有应用在使用 GPU</string>
+    <string name="no_data">无数据</string>
+    <string name="procs_shown">显示前 %1$d 个，共 %2$d 个</string>
+    <string name="procs_net">网络 %1$s</string>
+    <string name="procs_count">进程：%1$d</string>
+    <string name="procs_cores">核心：%1$s</string>
+    <string name="procs_a11y_loading">正在加载按 %1$s 负载排序的列表</string>
+    <string name="procs_a11y">按 %1$s 负载：%2$s</string>
+
+    <string name="alerts_page_waiting">等待数据…</string>
+    <string name="alerts_page_none">最近两天没有通知</string>
+    <string name="alerts_page_denied">macOS 不允许服务器读取通知</string>
+    <string name="alerts_a11y">共 %1$d 条。已选：%2$s，%3$s。%4$s</string>
+
+    <string name="places_title">时区和城市</string>
+    <string name="add_city">添加城市</string>
+    <string name="places_removed">已从列表中移除%1$s</string>
+    <string name="undo">撤销</string>
+    <string name="places_a11y">已选：%1$s。城市：%2$s</string>
+    <string name="none">无</string>
+    <string name="places_empty">添加一个城市：时钟和天气将以它为准。</string>
+    <string name="city_a11y">城市（%1$d），按地区：%2$s</string>
+    <string name="region_kyrgyzstan">吉尔吉斯斯坦</string>
+    <string name="region_central_asia">中亚</string>
+    <string name="region_russia">俄罗斯</string>
+    <string name="region_caucasus">高加索和土耳其</string>
+    <string name="region_middle_east">中东</string>
+    <string name="region_europe">欧洲</string>
+    <string name="region_asia">亚洲</string>
+    <string name="region_oceania">澳大利亚和大洋洲</string>
+    <string name="region_africa">非洲</string>
+    <string name="region_america">美洲</string>
+
+    <string name="blocks_title">主屏幕区块</string>
+    <string name="blocks_hint">按住左侧手柄拖动行即可调整顺序</string>
+    <string name="blocks_shown">显示：%1$d/%2$d</string>
+    <string name="zone_left">左侧</string>
+    <string name="zone_right">右侧</string>
+    <string name="zone_row">底部一行</string>
+    <string name="zone_top">顶部</string>
+    <string name="zone_middle">中部</string>
+    <string name="zone_bottom">底部</string>
+    <string name="block_clock">时钟和日期</string>
+    <string name="block_clock_note">所选时区的手机时间</string>
+    <string name="block_weather">天气</string>
+    <string name="block_weather_note">所选城市的天气</string>
+    <string name="block_alerts">通知</string>
+    <string name="block_alerts_note">Mac 和 iPhone 的通知</string>
+    <string name="block_batteries">设备电量</string>
+    <string name="block_batteries_note">鼠标、键盘、触控板</string>
+    <string name="block_cpu_note">处理器负载</string>
+    <string name="block_gpu_note">图形负载</string>
+    <string name="block_ram_note">已用内存</string>
+    <string name="block_net_note">网络速度</string>
+
+    <string name="settings_title">设置</string>
+    <string name="group_look">外观</string>
+    <string name="group_mac">服务器</string>
+    <string name="set_language">语言</string>
+    <string name="lang_system">跟随系统</string>
+    <string name="lang_system_named">跟随系统（%1$s）</string>
+    <string name="set_theme">主题</string>
+    <string name="theme_dark">深色</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_neon">霓虹</string>
+    <string name="set_orientation">屏幕方向</string>
+    <string name="orient_landscape">横屏</string>
+    <string name="orient_portrait">竖屏</string>
+    <string name="orient_auto">自动</string>
+    <string name="set_wifi">Wi‑Fi 连接</string>
+    <string name="set_wifi_hint">不接线时，手机需连接 Mac 所在的 Wi‑Fi 才能访问它</string>
+    <string name="set_alerts">Mac 通知</string>
+    <string name="set_alerts_hint">在面板上显示 Mac 的通知</string>
+    <string name="set_interval">刷新间隔</string>
+    <string name="set_weather">天气刷新</string>
+    <string name="fmt_seconds">%1$s 秒</string>
+    <string name="fmt_minutes">%1$d 分钟</string>
+    <string name="fmt_hours">%1$d 小时</string>
+    <string name="version">版本 %1$s</string>
+
+    <string name="config_problem">DeskStats：%1$s</string>
+    <string name="config_token_kept">令牌已保存；如需重新配对，请清除应用数据</string>
+    <string name="config_bad_port">端口 %1$d 无效</string>
+    <string name="config_bad_token">令牌无效：需要 32 到 128 个十六进制字符</string>
+
+    <string-array name="weather">
+        <item>晴</item>
+        <item>晴间少云</item>
+        <item>局部多云</item>
+        <item>阴</item>
+        <item>雾</item>
+        <item>毛毛雨</item>
+        <item>雨</item>
+        <item>雪</item>
+        <item>阵雨</item>
+        <item>降雪</item>
+        <item>雷暴</item>
+        <item>多云</item>
+    </string-array>
+</resources>

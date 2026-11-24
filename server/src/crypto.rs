@@ -1,9 +1,3 @@
-//! Encryption of what the phone and the server say to each other, with macOS CommonCrypto.
-//!
-//! Format: IV (16 bytes) | AES-256-CBC ciphertext (PKCS#7) | HMAC-SHA256 of IV and ciphertext.
-//! Both keys are derived from the shared token, which itself is never sent: the phone receives
-//! it once over USB. Each side checks the HMAC before decrypting.
-
 use std::ffi::c_void;
 
 const KCC_ENCRYPT: u32 = 0;
@@ -45,7 +39,6 @@ pub fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// The bytes of a hex string; None when it is not one.
 pub fn unhex(text: &str) -> Option<Vec<u8>> {
     let bytes = text.as_bytes();
     if bytes.len() % 2 != 0 {
@@ -55,7 +48,6 @@ pub fn unhex(text: &str) -> Option<Vec<u8>> {
     bytes.chunks(2).map(|pair| Some(digit(pair[0])? << 4 | digit(pair[1])?)).collect()
 }
 
-/// Compares in constant time, so a secret cannot be guessed byte by byte from response times.
 pub fn same(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
@@ -70,7 +62,6 @@ impl Keys {
         Keys { enc: hmac(token.as_bytes(), b"deskstats-enc"), mac: hmac(token.as_bytes(), b"deskstats-mac") }
     }
 
-    /// HMAC of a text with the MAC key, as hex; signs the Wi-Fi beacon.
     pub fn sign(&self, text: &str) -> String {
         hex(&hmac(&self.mac, text.as_bytes()))
     }
@@ -87,7 +78,6 @@ impl Keys {
         Some(out)
     }
 
-    /// The inverse of seal; None when the data was not sealed with these keys.
     pub fn open(&self, sealed: &[u8]) -> Option<Vec<u8>> {
         if sealed.len() < IV_LEN + 16 + MAC_LEN {
             return None;
@@ -133,8 +123,8 @@ mod tests {
     #[test]
     fn seal_and_open() {
         let keys = Keys::from_token("0123456789abcdef0123456789abcdef");
-        let sealed = keys.seal("{\"привет\":1}".as_bytes()).unwrap();
-        assert_eq!(keys.open(&sealed).unwrap(), "{\"привет\":1}".as_bytes());
+        let sealed = keys.seal("{\"héllo ✓\":1}".as_bytes()).unwrap();
+        assert_eq!(keys.open(&sealed).unwrap(), "{\"héllo ✓\":1}".as_bytes());
         let other = Keys::from_token("ffffffffffffffffffffffffffffffff");
         assert!(other.open(&sealed).is_none());
         let mut broken = sealed.clone();
@@ -152,7 +142,6 @@ mod tests {
 
     #[test]
     fn hmac_matches_known_vector() {
-        // RFC 4231 test case 2
         assert_eq!(hex(&hmac(b"Jefe", b"what do ya want for nothing?")), "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
     }
 }

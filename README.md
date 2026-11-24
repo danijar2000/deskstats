@@ -2,145 +2,129 @@
 
 [![build](https://github.com/danijar2000/deskstats/actions/workflows/build.yml/badge.svg)](https://github.com/danijar2000/deskstats/actions/workflows/build.yml)
 
-Старый Android-телефон на столе превращается в тёмную панель для Mac: часы, погода,
-уведомления Mac и iPhone, заряд мыши и клавиатуры, нагрузка процессора, видеоядра, памяти и
-сети с графиками.
+**English** · [Русский](docs/README.ru.md) · [Español](docs/README.es.md) · [Deutsch](docs/README.de.md) · [Français](docs/README.fr.md) · [Português](docs/README.pt.md) · [中文](docs/README.zh.md) · [日本語](docs/README.ja.md)
 
-![Главный экран](docs/screenshots/main.png)
+Turn an old Android phone into a status panel for your Mac: a clock, the weather, notifications
+from the Mac and the iPhone, the battery of your mouse and keyboard, and CPU, GPU, memory and
+network load with live charts.
 
-- **Сервер** работает на Mac в фоне и почти ничего не тратит: около 4 МБ памяти и полпроцента
-  одного ядра, а когда телефон не подключён — ничего.
-- **Телефон** подключается по USB-кабелю или по Wi-Fi и сам переключается между ними. Засыпает
-  и просыпается вместе с Mac: пока Mac спит, экран телефона чёрный.
+![A Mac with the phone panel beside it](docs/screenshots/hero.png)
 
-## Что умеет
+- **The Mac side** is a tiny background app: about 4 MB of memory and half a percent of one
+  core while the phone is connected, nothing at all when it is not.
+- **The phone** connects over the USB cable or over Wi‑Fi and switches between them by itself.
+  It sleeps and wakes with the Mac.
+- **Everything is set up on the phone**: language, theme, orientation, which blocks to show,
+  how often to update, Wi‑Fi access.
+
+## Screenshots
 
 | | |
 |---|---|
-| ![Приложения](docs/screenshots/apps.png) | **Нажмите на карточку нагрузки** — откроется список программ на Mac, отсортированный по этой нагрузке: процессор, видеоядро, память или сеть. Вкладки сверху переключают сортировку. |
-| ![Сеть](docs/screenshots/apps-net.png) | Во вкладке «Сеть» видно, какая программа сколько скачивает и отдаёт. |
-| ![Уведомления](docs/screenshots/alerts.png) | **Нажмите на уведомления** — откроется полный список; выбранное уведомление показано целиком справа. Новое уведомление на главном экране на несколько секунд показывается крупно. |
-| ![Города](docs/screenshots/places.png) | **Нажмите на часы или погоду** — откроется выбор города. Часы, дата, время уведомлений и погода переходят на выбранный город. Можно сохранить несколько городов. |
-| ![Добавить город](docs/screenshots/cities.png) | Около 90 городов по регионам. |
-| ![Блоки](docs/screenshots/blocks.png) | **Шестерёнка** справа вверху — список блоков: их можно скрывать и менять местами. Остальные блоки занимают освободившееся место. |
+| ![Dark theme](docs/screenshots/main-dark.png) | ![Neon theme](docs/screenshots/main-neon.png) |
+| **Dark** theme, the default | **Neon** theme |
+| ![Light theme](docs/screenshots/main-light.png) | ![Portrait](docs/screenshots/main-portrait.png) |
+| **Light** theme | **Portrait** orientation |
+| ![Applications](docs/screenshots/apps.png) | ![Notifications](docs/screenshots/alerts.png) |
+| Tap a load card: the Mac's apps sorted by that load | Tap the notifications: the full list with texts |
+| ![Cities](docs/screenshots/places.png) | ![Settings](docs/screenshots/settings.png) |
+| Tap the clock or the weather: pick a city | The gear: settings |
 
-## Что нужно
+## Requirements
 
-- **Mac** с macOS 11 или новее (Apple silicon или Intel).
-- **Android-телефон** с Android 2.3 или новее. Связь по USB — с Android 5.0; на более старых
-  только по Wi-Fi, но и им первый раз нужен кабель.
-- **adb** на Mac для связи по USB: `brew install android-platform-tools`.
-- На телефоне включена **«Отладка по USB»**: «Настройки → О телефоне», семь раз нажать «Номер
-  сборки», затем «Настройки → Для разработчиков → Отладка по USB». При первом подключении на
-  телефоне нужно разрешить отладку для этого Mac.
+- **A Mac** with macOS 11 or later (Apple silicon or Intel).
+- **An Android phone** with Android 2.3 or later. The USB link needs Android 5.0; older phones
+  use Wi‑Fi only, but they too need the cable once.
+- **adb** on the Mac for the USB link: `brew install android-platform-tools`.
+- **USB debugging** on the phone: Settings → About phone, tap "Build number" seven times, then
+  Settings → Developer options → USB debugging. Allow debugging for this Mac when the phone asks.
 
-## Установка
+## Install
 
-Подключите телефон к Mac кабелем и выполните одну команду:
+Connect the phone with a cable and run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash -s -- --city Bishkek --lan
+curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash
 ```
 
-Она скачивает готовые сборки из [Releases](https://github.com/danijar2000/deskstats/releases),
-ставит сервер в `~/Applications/Deskstats.app` с автозапуском при входе в систему и, если
-телефон подключён, ставит на него приложение. Через несколько секунд сервер сам откроет панель
-на телефоне и передаст ей ключ.
+It downloads the latest [release](https://github.com/danijar2000/deskstats/releases), installs
+the Mac app in `~/Applications/Deskstats.app` so that it starts at login, and installs the app
+on the phone. A few seconds later the Mac opens the panel on the phone and pairs with it.
 
-- `--city Bishkek` — город для погоды, пока на телефоне не выбран другой; можно не указывать.
-- `--lan` — разрешить связь по Wi-Fi; без него — только по кабелю.
-- Телефон без кабеля: добавьте `--no-phone`, а APK
-  ([deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk))
-  поставьте сами.
+No phone on a cable? Add `-s -- --no-phone` after `bash` and install
+[deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
+yourself.
 
-### Разрешения на Mac
+### Mac permissions
 
-После установки откройте «Системные настройки → Конфиденциальность и безопасность» и включите
-для **Deskstats**:
+Open System Settings → Privacy & Security and allow **Deskstats**:
 
-- **Полный доступ к диску** — для уведомлений приложений Mac.
-- **Универсальный доступ** — для уведомлений, пересланных с iPhone. macOS хранит их только на
-  экране, поэтому сервер читает окно Центра уведомлений: он видит их, пока показан баннер или
-  открыт Центр уведомлений.
+- **Full Disk Access** — for the notifications of Mac apps.
+- **Accessibility** — for notifications forwarded from the iPhone. macOS keeps those only on
+  screen, so Deskstats reads them while a banner is shown or the Notification Center is open.
 
-Без разрешений всё остальное работает, блок уведомлений подскажет, чего не хватает. Перезапускать
-сервер не нужно — он сам заметит разрешения в течение полуминуты.
+Everything else works without them. Deskstats notices the permissions by itself within half a
+minute. After an update macOS asks for them again; if a switch is already on but nothing
+arrives, remove Deskstats from the list (−) and add `~/Applications/Deskstats.app` again.
 
-macOS привязывает разрешения к файлу программы: после обновления сервера их нужно выдать снова.
-Если переключатель уже включён, а уведомлений нет — удалите Deskstats из списка («−») и добавьте
-`~/Applications/Deskstats.app` заново.
+## Use
 
-## Как пользоваться
+- **Load cards** (CPU, GPU, RAM, Network) open the Mac's applications sorted by that load. CPU
+  is counted per core, as in Activity Monitor: an app busy on three cores shows 300 %.
+- **Clock and weather** open the list of cities: add several, choose one, remove with ×.
+  The clock, the date, notification times and the weather follow the chosen city.
+- **Notifications** open the full list.
+- **The gear** opens the settings: language (8 languages), theme (dark, light, neon),
+  orientation (landscape, portrait, auto), the blocks of the main screen, Wi‑Fi connection,
+  Mac notifications, update interval and weather refresh.
+- **Back** closes a page; an unattended page closes by itself after a few minutes.
 
-- **Карточки CPU, GPU, RAM, Сеть** — нажатие открывает список программ по этой нагрузке. У
-  процессора проценты считаются от одного ядра, как в «Мониторинге системы»: программа на трёх
-  ядрах показывает 300 %.
-- **Часы и погода** — нажатие открывает выбор города. «Как на телефоне и Mac» — часовой пояс
-  телефона и город из `--city`. Крестик у города удаляет его, «Вернуть» внизу — отменяет.
-- **Уведомления** — нажатие открывает полный список.
-- **Шестерёнка** — список блоков: переключатель скрывает блок, значок слева перетаскивает.
-- **Назад** закрывает страницу. Страница без касаний закрывается сама через 3 минуты (список
-  программ — через 10).
-- Строка вверху показывает, как связан телефон: по USB, по Wi-Fi или нет связи.
+To avoid burn-in the picture moves a few pixels every two minutes and the screen dims after
+five minutes without the Mac. The panel starts after the phone reboots (up to Android 9; on
+newer phones the Mac opens it over USB).
 
-Против выгорания экрана картинка раз в две минуты немного сдвигается, а через пять минут без
-связи с Mac экран тускнеет. После перезагрузки телефона панель открывается сама (до Android 9;
-на более новых её откроет сервер по USB или запустите её сами).
+## Update and remove
 
-## Обновление и удаление
-
-Обновить — та же команда установки. Если телефон пишет, что приложение с другой подписью,
-удалите его (настройки блоков и городов сбросятся) и запустите установку снова:
+Update: run the install command again. If the phone refuses the new app because of a different
+signature, remove the old one (its settings are lost) and run the command again:
 
 ```bash
 adb uninstall app.deskstats
 ```
 
-Удалить сервер:
+Remove the Mac app:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash -s -- --uninstall
 ```
 
-Ключ останется в `~/Library/Application Support/deskstats` (удалите папку, чтобы забыть
-телефон), а записи Deskstats в настройках конфиденциальности удаляются только вручную.
+The pairing key stays in `~/Library/Application Support/deskstats` (delete the folder to forget
+the phone); the entries in Privacy & Security can only be removed there by hand.
 
-## Параметры сервера
+## Troubleshooting
 
-Те же параметры передаются команде установки после `--`; чтобы поменять их, запустите установку
-ещё раз с новыми.
-
-| Параметр | Что делает |
+| What you see | What to do |
 |---|---|
-| `--interval <секунды>` | как часто замерять нагрузку, от 0.2 до 3600, по умолчанию 1 |
-| `--port <порт>` | порт, по умолчанию 8787 |
-| `--city <город>` | погода, пока на телефоне не выбран город, например `Bishkek` |
-| `--weather-hours <часы>` | как часто обновлять погоду, от 0.25 до 168, по умолчанию 1 |
-| `--lan` | отвечать и по Wi-Fi |
-| `--no-alerts` | не показывать уведомления |
-| `--no-adb` | не настраивать связь по USB |
+| "Mac · no connection" | Check the cable and `adb devices` (the phone must be listed as `device`). Over Wi‑Fi: switch Wi‑Fi on in the panel's settings while on the cable, and keep both on one network. |
+| "token needed: connect the phone by USB" | Connect the cable: the Mac pairs the phone by itself. |
+| "the server refused (code N)" | The phone app and the Mac app are of different versions: update both. |
+| No notifications | Allow the permissions above. |
+| No weather | Choose a city: tap the weather. |
 
-Журнал сервера — `~/Library/Logs/deskstats.log`.
+## Security
 
-## Если что-то не так
+The phone and the Mac encrypt everything they send each other with a key the phone gets once
+over the cable; the key itself never crosses the network. Requests without it are refused
+before anything runs. Nothing leaves the Mac except the coordinates of the chosen city, sent to
+open-meteo.com for the weather.
 
-| Что видно | Что сделать |
-|---|---|
-| «Mac · нет связи» | Проверьте кабель и `adb devices` (телефон должен быть в списке как `device`). По Wi-Fi: сервер установлен с `--lan`, телефон и Mac в одной сети. |
-| «нужен токен: подключите телефон по USB» | Подключите кабель — сервер сам передаст ключ. |
-| «сервер отказал (код N)» | На телефоне старая версия приложения или на Mac старый сервер — обновите оба. |
-| Нет уведомлений | Выдайте разрешения (см. выше). |
-| Нет погоды | Укажите `--city` при установке или выберите город на телефоне. |
-| Карточка GPU пишет «нет данных о видеоядре» | Этот Mac не сообщает загрузку видеоядра. |
+## Build from source
 
-## Безопасность
+```bash
+(cd server && cargo test && ./install.sh)
+(cd android && ./gradlew :app:assembleRelease)
+```
 
-Телефон и сервер шифруют всё, что передают друг другу, ключом, который телефон один раз получает
-по кабелю; сам ключ по сети не ходит. Чужие запросы сервер отклоняет, ничего не запуская. Сервер
-не отправляет никуда данные, кроме названия города или координат для погоды на open-meteo.com.
-
-## Сборка из исходников
-
-Как собрать самому, как устроены связь и запросы — в [docs/protocol.md](docs/protocol.md).
-Сборки для релизов делает [GitHub Actions](.github/workflows/build.yml): на каждый push
-проверяются и собираются сервер и APK, а тег `v*` публикует их в Releases.
+The server needs Rust; the app needs JDK 17+ and the Android SDK with platform 34.
+[GitHub Actions](.github/workflows/build.yml) builds both on every push and publishes a release
+for every `v*` tag.

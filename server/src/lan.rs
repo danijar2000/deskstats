@@ -1,11 +1,3 @@
-//! The Wi-Fi side: this Mac's addresses and a beacon that lets the phone find them.
-//!
-//! Every few seconds the server broadcasts on each network a line
-//! `DESKSTATS2 <ip> <port> <time> <hmac>` to UDP port 8788. The HMAC (key from the token) covers
-//! the address, the port and the time (ms since the epoch), so another device can neither point
-//! the phone at itself by faking a beacon nor replay an old one: the phone takes only a beacon
-//! newer than the last.
-
 use crate::crypto::Keys;
 use crate::ffi::{freeifaddrs, getifaddrs, IfAddrs};
 use crate::util::{log, now_ms};
@@ -20,7 +12,6 @@ const IFF_BROADCAST: u32 = 0x2;
 const IFF_LOOPBACK: u32 = 0x8;
 const IFF_RUNNING: u32 = 0x40;
 
-/// IPv4 address and broadcast address of every active physical interface (en*).
 pub fn interfaces() -> Vec<(Ipv4Addr, Ipv4Addr)> {
     let mut out = Vec::new();
     unsafe {
@@ -42,7 +33,6 @@ pub fn interfaces() -> Vec<(Ipv4Addr, Ipv4Addr)> {
             if !CStr::from_ptr(ifa.ifa_name).to_bytes().starts_with(b"en") {
                 continue;
             }
-            // sockaddr_in: len, family, port (2 bytes), then the address
             let addr = |p: *const u8| Ipv4Addr::new(*p.add(4), *p.add(5), *p.add(6), *p.add(7));
             out.push((addr(ifa.ifa_addr), addr(ifa.ifa_dstaddr)));
         }
@@ -56,10 +46,13 @@ pub fn beacon_text(keys: &Keys, ip: Ipv4Addr, port: u16, time_ms: u64) -> String
     format!("{body} {}", keys.sign(&body))
 }
 
-/// Broadcasts the beacon every 3 seconds on every network this Mac is on.
-pub fn run_beacon(keys: Keys, port: u16) {
+pub fn run_beacon(keys: Keys, port: u16, settings: std::sync::Arc<crate::settings::Settings>) {
     let mut failing = false;
     loop {
+        if !settings.lan.load(std::sync::atomic::Ordering::Relaxed) {
+            std::thread::sleep(Duration::from_secs(3));
+            continue;
+        }
         let mut sent = false;
         for (ip, broadcast) in interfaces() {
             let Ok(socket) = UdpSocket::bind(SocketAddrV4::new(ip, 0)) else { continue };

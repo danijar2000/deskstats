@@ -1,5 +1,3 @@
-//! Load of this Mac: CPU, memory, network, GPU and the battery of wireless peripherals.
-
 use crate::ffi::*;
 use crate::util::json_escape;
 use std::collections::HashMap;
@@ -25,7 +23,6 @@ pub fn sysctl_string(name: &str) -> String {
     CStr::from_bytes_until_nul(&buf).map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
-/// The host port, taken once: every mach_host_self() call adds a reference to it.
 pub struct Host(u32);
 
 impl Host {
@@ -33,7 +30,6 @@ impl Host {
         Host(unsafe { mach_host_self() })
     }
 
-    /// Per-core tick counters: (busy, total).
     pub fn cpu_ticks(&self) -> Vec<(u64, u64)> {
         let mut cores = Vec::new();
         unsafe {
@@ -43,7 +39,6 @@ impl Host {
             if host_processor_info(self.0, PROCESSOR_CPU_LOAD_INFO, &mut count, &mut info, &mut info_count) != 0 || info.is_null() {
                 return cores;
             }
-            // user, system, idle, nice per core
             let usable = (count as usize).min(info_count as usize / 4);
             for core in 0..usable {
                 let t = std::slice::from_raw_parts(info.add(core * 4), 4);
@@ -55,7 +50,6 @@ impl Host {
         cores
     }
 
-    /// Memory in use the way Activity Monitor counts it: app memory + wired + compressed.
     pub fn ram_used(&self, page_size: u64) -> u64 {
         let mut vm = VmStatistics64::default();
         let mut count = HOST_VM_INFO64_COUNT;
@@ -68,12 +62,10 @@ impl Host {
     }
 }
 
-/// CPU load in percent between two tick snapshots.
 pub fn cpu_percent(prev: &[(u64, u64)], cur: &[(u64, u64)]) -> f64 {
     let (mut busy, mut total) = (0u64, 0u64);
     for (i, (b, t)) in cur.iter().enumerate() {
         let Some((pb, pt)) = prev.get(i) else { continue };
-        // The kernel counters are 32-bit and wrap.
         busy += b.wrapping_sub(*pb) & 0xffff_ffff;
         total += t.wrapping_sub(*pt) & 0xffff_ffff;
     }
@@ -88,14 +80,10 @@ const CTL_NET: i32 = 4;
 const PF_ROUTE: i32 = 17;
 const NET_RT_IFLIST2: i32 = 6;
 const RTM_IFINFO2: u8 = 0x12;
-/// Offsets inside `struct if_msghdr2`: the interface index, and the 64-bit byte counters of
-/// its `if_data64`.
 const IFM_INDEX: usize = 12;
 const IFM_IBYTES: usize = 96;
 const IFM_OBYTES: usize = 104;
 
-/// Received and sent byte counters of each physical interface (en*), by name. They come from
-/// the routing sysctl: the counters getifaddrs gives are 32-bit and wrap every 4 GB.
 pub fn net_counters() -> HashMap<String, (u64, u64)> {
     let mut out = HashMap::new();
     let mut mib = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, 0];
@@ -104,7 +92,6 @@ pub fn net_counters() -> HashMap<String, (u64, u64)> {
         if sysctl(mib.as_mut_ptr(), 6, std::ptr::null_mut(), &mut len, std::ptr::null(), 0) != 0 {
             return out;
         }
-        // Interfaces may appear between the two calls; leave some room.
         let mut buf = vec![0u8; len + 4096];
         len = buf.len();
         if sysctl(mib.as_mut_ptr(), 6, buf.as_mut_ptr() as *mut c_void, &mut len, std::ptr::null(), 0) != 0 {
@@ -112,7 +99,6 @@ pub fn net_counters() -> HashMap<String, (u64, u64)> {
         }
         let buf = &buf[..len.min(buf.len())];
         let mut at = 0;
-        // Each message starts with its length (u16), a version and a type.
         while at + 4 <= buf.len() {
             let size = u16::from_ne_bytes([buf[at], buf[at + 1]]) as usize;
             if size == 0 || at + size > buf.len() {
@@ -139,8 +125,6 @@ pub fn net_counters() -> HashMap<String, (u64, u64)> {
     out
 }
 
-/// Bytes received and sent between two snapshots. Only interfaces present in both count, so one
-/// appearing or vanishing does not show up as traffic; a counter that went back (a reset) adds nothing.
 pub fn net_delta(prev: &HashMap<String, (u64, u64)>, cur: &HashMap<String, (u64, u64)>) -> (u64, u64) {
     let (mut rx, mut tx) = (0u64, 0u64);
     for (name, (r, t)) in cur {
@@ -167,8 +151,6 @@ impl Gpu {
         }
     }
 
-    /// GPU load in percent and GPU memory in use, read from the accelerator's registry entry.
-    /// Apple does not document these keys; None when they are missing.
     pub fn sample(&self) -> Option<(f64, u64)> {
         let mut best: Option<(f64, u64)> = None;
         unsafe {
@@ -223,8 +205,6 @@ impl Batteries {
         }
     }
 
-    /// Battery levels of the wireless mouse, keyboard and trackpad as a JSON array, read at most
-    /// once a minute. Only devices that report a level to macOS show up (Apple's own do).
     pub fn refresh(&mut self) -> &str {
         if self.read_at.is_none_or(|t| t.elapsed() >= Duration::from_secs(60)) {
             self.read_at = Some(Instant::now());
@@ -291,7 +271,6 @@ mod tests {
     fn cpu_percent_handles_wrap_and_missing_cores() {
         let prev = vec![(u32::MAX as u64 - 10, u32::MAX as u64 - 20)];
         let cur = vec![(30, 80), (5, 10)];
-        // busy +41, total +101 on core 0; core 1 has no previous sample and is skipped
         let pct = cpu_percent(&prev, &cur);
         assert!((pct - 41.0 * 100.0 / 101.0).abs() < 1e-9);
         assert_eq!(cpu_percent(&[], &cur), 0.0);
@@ -308,13 +287,11 @@ mod tests {
     fn net_delta_counts_past_four_gigabytes_and_ignores_a_reset() {
         let prev = HashMap::from([("en0".to_string(), (u32::MAX as u64 - 99, 5000u64))]);
         let cur = HashMap::from([("en0".to_string(), (u32::MAX as u64 + 2_500_000_000, 10u64))]);
-        // rx grew by 2.5 GB across the 32-bit boundary; tx went back (interface reset) and counts as nothing
         assert_eq!(net_delta(&prev, &cur), (2_500_000_099, 0));
     }
 
     #[test]
     fn net_counters_read_the_interfaces() {
-        // Every Mac has en0; its counters only grow.
         let first = net_counters();
         assert!(first.contains_key("en0"), "{first:?}");
         let second = net_counters();

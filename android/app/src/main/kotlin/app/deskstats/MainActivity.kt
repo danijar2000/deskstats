@@ -2,6 +2,8 @@ package app.deskstats
 
 import android.app.Activity
 import android.content.Context
+import android.content.res.Configuration
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
@@ -17,7 +19,6 @@ import java.util.Locale
 import java.util.TimeZone
 
 data class Weather(
-    val city: String,
     val temp: Float,
     val feels: Float?,
     val code: Int,
@@ -29,7 +30,6 @@ data class Weather(
 data class Battery(val kind: String, val name: String, val pct: Int)
 
 data class Alert(val id: String, val ts: Long, val app: String, val title: String, val body: String) {
-    /** The server's id with the time: two notifications with the same text are two notifications. */
     val key: String = if (id.isEmpty()) "$app|$title|$body|$ts" else "$id|$ts"
 }
 
@@ -47,9 +47,7 @@ class Stats(
     val up: Float,
     val weather: Weather?,
     val batteries: List<Battery>,
-    /** Null when the server does not serve notifications. */
     val alerts: List<Alert>?,
-    /** The server serves notifications but macOS does not let it read them. */
     val alertsDenied: Boolean,
 ) {
     companion object {
@@ -58,10 +56,8 @@ class Stats(
 
         private fun parseWeather(o: JSONObject?): Weather? {
             if (o == null) return null
-            // A broken weather block must not take the rest of the panel down with it.
             return try {
                 Weather(
-                    city = o.optString("city"),
                     temp = o.optFloat("temp") ?: return null,
                     feels = o.optFloat("feels"),
                     code = o.optInt("code", -1),
@@ -91,7 +87,6 @@ class Stats(
                     val title = a.optString("title")
                     val heading = if (subtitle.isEmpty()) title else if (title.isEmpty()) subtitle else "$title · $subtitle"
                     val body = a.optString("body")
-                    // A notification without a title shows its text on the title line instead of a gap.
                     Alert(
                         id = a.optString("id"),
                         ts = a.optLong("ts"),
@@ -122,37 +117,57 @@ class Stats(
     }
 }
 
-/** What the last poll found, besides data. */
 enum class Link { WAITING, ONLINE, STARTING, NO_TOKEN, REFUSED, OFFLINE }
 
-/** How the panel reached the Mac. */
 enum class Route { USB, WIFI }
 
 class MainActivity : Activity(), Page.Host {
     private lateinit var panel: PanelView
     private lateinit var clock: ClockView
     private lateinit var root: FrameLayout
+    private lateinit var ui: Context
+    private val history = History()
 
-    /** The pages opened over the main screen, the top one last. */
     private val pages = ArrayList<Page>()
-    /** What the poller adds to its requests for the page on top; read on its thread. */
     @Volatile private var procsSort: String? = null
     @Volatile private var fullAlerts = false
     @Volatile private var placeQuery: String? = null
+    private var lastAsked: String? = null
+
+    private var link = Link.WAITING
+    private var route = Route.USB
+    private var refused = 0
+
+    private val prefs get() = getSharedPreferences(Settings.PREFS, Context.MODE_PRIVATE)
 
     override var places = Places(emptyList(), null)
         set(value) {
             field = value
-            value.save(getSharedPreferences(Settings.PREFS, Context.MODE_PRIVATE))
+            value.save(prefs)
             applyPlace()
         }
 
     override var setup = BlockSetup(Block.values().toList(), emptySet())
         set(value) {
             field = value
-            value.save(getSharedPreferences(Settings.PREFS, Context.MODE_PRIVATE))
+            value.save(prefs)
             panel.setup = value
         }
+
+    override var options = Options()
+        set(value) {
+            val old = field
+            field = value
+            intervalMs = value.intervalMs.toLong()
+            configQuery = value.query
+            requestedOrientation = value.requestedOrientation
+            if (!built) return
+            value.save(prefs)
+            if (value.language != old.language || value.theme != old.theme) build(reopenSettings = true) else panel.alertsEnabled = value.alerts
+        }
+
+    @Volatile private var intervalMs = 1000L
+    @Volatile private var configQuery = Options().query
     @Volatile private var usbPort = Settings.DEFAULT_PORT
     @Volatile private var token = ""
     @Volatile private var keys: Keys? = null
@@ -167,13 +182,10 @@ class MainActivity : Activity(), Page.Host {
     private var shiftStep = 0
     private var offlineSince = 0L
     private var dimmed = false
-    /** The Mac said it sleeps, shuts down or turned its display off: the panel is dark until it wakes. */
     @Volatile private var macAsleep = false
+    private var builtLanguage = ""
 
-    /**
-     * Moves the whole picture every two minutes so the AMOLED does not burn in: 5 px at a time,
-     * back and forth over a square of ±10 px (the margins of the screen are almost 30 px).
-     */
+    // Moves the picture by a few pixels every two minutes so the AMOLED does not burn in.
     private val shift = object : Runnable {
         override fun run() {
             shiftStep = (shiftStep + 1) % (SHIFT_SIDE * SHIFT_SIDE)
@@ -186,39 +198,79 @@ class MainActivity : Activity(), Page.Host {
         }
     }
 
-    /** A page nobody touches closes, so the phone goes back to being a panel. */
     private val idle = Runnable { home() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         showOverLockScreen()
-        panel = PanelView(this)
-        clock = ClockView(this)
         root = FrameLayout(this)
-        // The background belongs to the root and stays put, so the shifted picture leaves no black edge.
-        root.setBackgroundColor(PanelView.BACKGROUND)
-        root.addView(panel)
-        root.addView(clock)
-        panel.onLayout = clock::place
         setContentView(root)
         hideSystemBars()
 
-        val prefs = getSharedPreferences(Settings.PREFS, Context.MODE_PRIVATE)
+        val prefs = prefs
+        options = Options.load(prefs)
+        build(reopenSettings = false)
         setup = BlockSetup.load(prefs)
         places = Places.load(prefs)
-        panel.onGear = { open(BlocksPage(this, this)) }
+    }
+
+    private fun setupLocale(o: Options) {
+        ui = Ui.localize(this, o.language)
+        builtLanguage = Ui.language
+        Ui.p = Palette.of(o.theme)
+        Fmt.init(ui)
+        Places.localize(ui)
+    }
+
+    private var built = false
+
+    private fun build(reopenSettings: Boolean) {
+        setupLocale(options)
+        pages.clear()
+        root.removeAllViews()
+        root.setBackgroundColor(Ui.p.background)
+        if (root.visibility == View.VISIBLE) window.setBackgroundDrawable(ColorDrawable(Ui.p.background))
+        panel = PanelView(ui, history)
+        clock = ClockView(ui)
+        root.addView(panel)
+        root.addView(clock)
+        panel.onLayout = clock::place
+        panel.onGear = { open(SettingsPage(ui, this)) }
         panel.onBlock = { block ->
             when (block) {
-                Block.CLOCK, Block.WEATHER -> open(PlacesPage(this, this))
-                Block.ALERTS -> open(AlertsPage(this, this).also { page -> panel.latest?.let(page::push) })
-                Block.CPU, Block.GPU, Block.RAM, Block.NET -> open(ProcsPage(this, this, block) { watchTopPage() })
+                Block.CLOCK, Block.WEATHER -> open(PlacesPage(ui, this))
+                Block.ALERTS -> open(AlertsPage(ui, this).also { page -> panel.latest?.let(page::push) })
+                Block.CPU, Block.GPU, Block.RAM, Block.NET -> open(ProcsPage(ui, this, block) { watchTopPage() })
                 Block.BATTERIES -> {}
             }
         }
+        panel.alertsEnabled = options.alerts
+        if (built) {
+            panel.setup = setup
+            applyPlace()
+            panel.address = usbBase()
+            panel.route = route
+            if (refused != 0) panel.refused = refused
+            panel.link = link
+            clock.link = link
+            history.last?.let { panel.push(it, lastAsked != null && lastAsked == placeQuery, sample = false) }
+        }
+        built = true
+        if (reopenSettings) open(SettingsPage(ui, this))
+        watchTopPage()
     }
 
-    /** The clock, the date and the weather follow the chosen city. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (options.language.isEmpty() && Ui.systemLanguage() != builtLanguage) {
+            val top = pages.lastOrNull()
+            build(reopenSettings = top is SettingsPage || top is LanguagePage)
+        } else if (Build.VERSION.SDK_INT < 17) {
+            Ui.localize(this, options.language)
+        }
+    }
+
     private fun applyPlace() {
         val city = places.active
         placeQuery = city?.let { String.format(Locale.US, "place=%.2f,%.2f", it.lat, it.lon) }
@@ -227,7 +279,6 @@ class MainActivity : Activity(), Page.Host {
     }
 
     override fun open(page: Page) {
-        // Only the page on top is drawn and touched.
         pages.lastOrNull()?.visibility = View.GONE
         pages.add(page)
         root.addView(page)
@@ -254,7 +305,6 @@ class MainActivity : Activity(), Page.Host {
         while (pages.isNotEmpty()) back()
     }
 
-    /** Tells the poller what the page on top needs from the Mac. */
     private fun watchTopPage() {
         val top = pages.lastOrNull()
         procsSort = (top as? ProcsPage)?.sort?.id
@@ -262,10 +312,6 @@ class MainActivity : Activity(), Page.Host {
         restartIdle()
     }
 
-    /**
-     * One timer for all pages, started again by any touch: three minutes, and ten for the
-     * applications, which are watched without touching the screen.
-     */
     private fun restartIdle() {
         root.removeCallbacks(idle)
         val top = pages.lastOrNull() ?: return
@@ -277,7 +323,6 @@ class MainActivity : Activity(), Page.Host {
         return super.dispatchTouchEvent(event)
     }
 
-    /** After a restart of the phone the panel is shown without unlocking it first. */
     private fun showOverLockScreen() {
         if (Build.VERSION.SDK_INT >= 27) {
             setShowWhenLocked(true)
@@ -287,9 +332,7 @@ class MainActivity : Activity(), Page.Host {
         }
     }
 
-    /** The back key closes a page. (onBackPressed appeared only in Android 2.0.) */
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // On the main screen the back key does nothing: the panel is not meant to be left by accident.
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             back()
             return true
@@ -304,7 +347,6 @@ class MainActivity : Activity(), Page.Host {
 
     @Suppress("DEPRECATION")
     private fun hideSystemBars() {
-        // Before Android 4.4 there is no immersive mode; the fullscreen theme hides the status bar there.
         if (Build.VERSION.SDK_INT < 19) return
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
             View.SYSTEM_UI_FLAG_FULLSCREEN or
@@ -317,11 +359,10 @@ class MainActivity : Activity(), Page.Host {
     override fun onStart() {
         super.onStart()
         loadSettings()
-        // The phone's time zone may have changed while the panel was away.
         applyPlace()
-        // A notice of the Mac's sleep or wake-up that onStop cut short must not leave the panel black.
         macAsleep = false
         root.visibility = View.VISIBLE
+        window.setBackgroundDrawable(ColorDrawable(Ui.p.background))
         setBrightness(if (dimmed) DIM else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
         root.postDelayed(shift, 120_000L)
         restartIdle()
@@ -329,10 +370,8 @@ class MainActivity : Activity(), Page.Host {
         listenForBeacon()
     }
 
-    /** Learns the Mac's Wi-Fi address from its signed beacon, also when it changes. */
     private fun listenForBeacon() {
         try {
-            // Some Wi-Fi drivers drop broadcast packets unless an app holds this lock.
             val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
             multicastLock = wifi.createMulticastLock("deskstats").apply {
                 setReferenceCounted(false)
@@ -344,20 +383,17 @@ class MainActivity : Activity(), Page.Host {
             if (host == wifiHost && port == wifiPort) return@Beacon
             wifiHost = host
             wifiPort = port
-            getSharedPreferences(Settings.PREFS, Context.MODE_PRIVATE).edit()
-                .putString(Settings.WIFI_HOST, host).putInt(Settings.WIFI_PORT, port).commit()
+            prefs.edit().putString(Settings.WIFI_HOST, host).putInt(Settings.WIFI_PORT, port).commit()
         }.also { it.start() }
     }
 
-    /** ConfigActivity brings an already open panel back with a new address or token. */
     override fun onNewIntent(intent: android.content.Intent?) {
         super.onNewIntent(intent)
         loadSettings()
     }
 
-    /** The poller reads these fields before every request, so a change applies at once. */
     private fun loadSettings() {
-        val prefs = getSharedPreferences(Settings.PREFS, Context.MODE_PRIVATE)
+        val prefs = prefs
         usbPort = prefs.getInt(Settings.USB_PORT, Settings.DEFAULT_PORT)
         token = prefs.getString(Settings.TOKEN, null) ?: ""
         keys = if (token.isEmpty()) null else Keys(token)
@@ -385,21 +421,24 @@ class MainActivity : Activity(), Page.Host {
         multicastLock = null
     }
 
-    /**
-     * Puts the result of a poll on the screen. [code] is the HTTP status of a refusal; [asked] is
-     * the place the request was made for, which decides whether its weather may be shown.
-     */
     private fun show(link: Link, stats: Stats?, route: Route? = null, code: Int = 0, asked: String? = null) {
         val me = Thread.currentThread()
         panel.post {
-            // A poller replaced by onStop/onStart must not touch the panel any more.
             if (poller !== me) return@post
             if (stats != null) {
-                panel.push(stats, asked == placeQuery)
+                lastAsked = asked
+                panel.push(stats, asked != null && asked == placeQuery)
                 (pages.lastOrNull() as? AlertsPage)?.push(stats)
             }
-            if (route != null) panel.route = route
-            if (link == Link.REFUSED) panel.refused = code
+            if (route != null) {
+                this.route = route
+                panel.route = route
+            }
+            if (link == Link.REFUSED) {
+                refused = code
+                panel.refused = code
+            }
+            this.link = link
             panel.link = link
             clock.link = link
             (pages.lastOrNull() as? ProcsPage)?.link = link
@@ -407,14 +446,8 @@ class MainActivity : Activity(), Page.Host {
         }
     }
 
-    /**
-     * Sleeps and wakes with the Mac. Asleep, nothing is drawn: on an AMOLED screen black pixels
-     * give no light, so the screen is as good as off, while the app keeps asking the Mac quietly
-     * and lights up the moment it is back.
-     */
     private fun showAsleep(asleep: Boolean) {
         val me = Thread.currentThread()
-        // A poller that onStop/onStart replaced must not change the state of the new one.
         if (poller !== me) return
         macAsleep = asleep
         panel.post {
@@ -422,6 +455,7 @@ class MainActivity : Activity(), Page.Host {
             val visibility = if (asleep) View.INVISIBLE else View.VISIBLE
             if (root.visibility == visibility) return@post
             root.visibility = visibility
+            window.setBackgroundDrawable(ColorDrawable(if (asleep) 0xFF000000.toInt() else Ui.p.background))
             // Not zero: some old phones take it as "screen off", and then the polling stops too.
             setBrightness(if (asleep) 0.01f else if (dimmed) DIM else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
         }
@@ -434,7 +468,6 @@ class MainActivity : Activity(), Page.Host {
         window.attributes = attrs
     }
 
-    /** After five minutes without the computer the screen is dimmed, saving the AMOLED and the battery. */
     private fun dimWhenAway(link: Link) {
         if (macAsleep) return
         val now = System.currentTimeMillis()
@@ -446,22 +479,18 @@ class MainActivity : Activity(), Page.Host {
         setBrightness(if (dim) DIM else WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
     }
 
-    /** The phone's own end of the USB tunnel (adb reverse). */
     private fun usbBase() = "http://127.0.0.1:$usbPort"
 
-    /** The applications' load for the open page, asked right after the regular poll. */
+    private fun base(route: Route) = if (route == Route.USB) usbBase() else "http://$wifiHost:$wifiPort"
+
     private fun askProcs(route: Route, sort: String) {
-        val base = if (route == Route.USB) usbBase() else "http://$wifiHost:$wifiPort"
         val answer = try {
-            // The first answer takes the Mac about half a second: it measures over a moment.
-            ask(base, "/procs?sort=$sort", 1500)
+            ask(base(route), "/procs?sort=$sort", 1500)
         } catch (e: IOException) {
             return procsFailed(0)
         }
-        // A refusal (an older server, a wrong address) is said on the page instead of waiting for ever.
         if (answer.code != 200) return procsFailed(answer.code)
         val json = answer.json ?: return procsFailed(0)
-        // A broken list must not look like a lost connection to the regular poll.
         val o = try {
             JSONObject(json)
         } catch (e: org.json.JSONException) {
@@ -494,16 +523,15 @@ class MainActivity : Activity(), Page.Host {
         }
     }
 
-    /** One answer from the Mac: its status and, for 200, the JSON text. */
+    private fun sendConfig(route: Route, query: String): Boolean = try {
+        ask(base(route), query, 1500).code == 200
+    } catch (e: IOException) {
+        false
+    }
+
     private class Answer(val code: Int, val json: String?)
 
-    /**
-     * Asks the Mac once for [target] ("/stats?…", "/procs?…"). The token is never sent: the
-     * request is sealed with keys derived from it, and so is the answer, which must carry the
-     * nonce of this very request — an answer recorded earlier is not taken.
-     */
     private fun ask(base: String, target: String, connectTimeout: Int): Answer {
-        // Without a token there is nothing to ask with; the Mac hands one over USB.
         val k = keys ?: return Answer(401, null)
         val nonce = k.nonce()
         val c = URL("$base/q?" + k.seal("Q\n$nonce\n$target")).openConnection() as HttpURLConnection
@@ -516,7 +544,6 @@ class MainActivity : Activity(), Page.Host {
                 drain(c)
                 return Answer(code, null)
             }
-            // Sealed with another token: the same as having none.
             val text = k.open(read(c)) ?: return Answer(401, null)
             val parts = text.split('\n', limit = 4)
             if (parts.size != 4 || parts[0] != "A" || parts[1] != nonce) throw IOException("not the answer to this request")
@@ -527,16 +554,14 @@ class MainActivity : Activity(), Page.Host {
         }
     }
 
-    /**
-     * USB first (adb reverse on localhost), Wi-Fi when the cable is out. While on Wi-Fi, USB is
-     * tried again every 10 seconds, so plugging the cable in switches back to it.
-     */
     private fun poll() {
         val me = Thread.currentThread()
         var route = Route.USB
         var usbRetryAt = 0L
         var procsAsked: String? = null
         var procsAt = 0L
+        var configSent: String? = null
+        var configAt = 0L
         while (poller === me) {
             var wait = 2000L
             try {
@@ -554,7 +579,6 @@ class MainActivity : Activity(), Page.Host {
                         used = r
                         break
                     } catch (e: IOException) {
-                        // Not reachable this way; try the next one.
                     }
                 }
                 if (used == Route.WIFI && Route.USB in routes) {
@@ -563,12 +587,10 @@ class MainActivity : Activity(), Page.Host {
                 route = used
                 val mac = if (answer?.code == 200 && answer.json != null) JSONObject(answer.json).optString("mac", "awake") else null
                 if (mac != null && mac != "awake") {
-                    // Sleeping, shutting down or display off: go dark and check back every 2 seconds.
                     showAsleep(true)
                     Thread.sleep(2000L)
                     continue
                 }
-                // While the Mac sleeps it does not answer at all; stay dark until it does.
                 if (answer == null && macAsleep) {
                     Thread.sleep(2000L)
                     continue
@@ -578,12 +600,17 @@ class MainActivity : Activity(), Page.Host {
                     answer == null -> show(Link.OFFLINE, null)
                     answer.code == 200 -> {
                         val stats = Stats.parse(JSONObject(answer.json!!))
-                        wait = stats.intervalMs
+                        wait = intervalMs
                         show(Link.ONLINE, stats, used, asked = asked)
-                        // The list costs the Mac two processes a time: asked at once for a new
-                        // measure, then every few seconds rather than with every poll.
-                        val sort = procsSort
+                        val query = configQuery
                         val now = System.currentTimeMillis()
+                        // A restarted or reinstalled Mac server may have lost the settings.
+                        val forgotten = stats.intervalMs != intervalMs
+                        if ((query != configSent || forgotten) && now - configAt >= 10_000L) {
+                            configAt = now
+                            configSent = if (sendConfig(used, query)) query else null
+                        }
+                        val sort = procsSort
                         if (sort != null && (sort != procsAsked || now - procsAt >= PROCS_MS)) {
                             procsAt = now
                             askProcs(used, sort)
@@ -595,7 +622,6 @@ class MainActivity : Activity(), Page.Host {
                         show(Link.STARTING, null, used)
                     }
                     answer.code == 401 -> show(Link.NO_TOKEN, null, used)
-                    // The Mac is there but refuses (403, 404, 421…): not a matter of the cable.
                     else -> show(Link.REFUSED, null, used, code = answer.code)
                 }
             } catch (e: InterruptedException) {
@@ -612,7 +638,6 @@ class MainActivity : Activity(), Page.Host {
         }
     }
 
-    /** Reads the body, refusing anything larger than a sane response. */
     private fun read(c: HttpURLConnection): ByteArray {
         c.inputStream.use { input ->
             val out = java.io.ByteArrayOutputStream()

@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">DeskStats</string>
+    <string name="cpu" translatable="false">CPU</string>
+    <string name="gpu" translatable="false">GPU</string>
+    <string name="ram" translatable="false">RAM</string>
+    <string name="lang_en" translatable="false">English</string>
+    <string name="lang_ru" translatable="false">Русский</string>
+    <string name="lang_es" translatable="false">Español</string>
+    <string name="lang_de" translatable="false">Deutsch</string>
+    <string name="lang_fr" translatable="false">Français</string>
+    <string name="lang_pt" translatable="false">Português</string>
+    <string name="lang_zh" translatable="false">简体中文</string>
+    <string name="lang_ja" translatable="false">日本語</string>
+
+    <string name="status_usb">Mac · connected via USB</string>
+    <string name="status_wifi">Mac · connected via Wi‑Fi</string>
+    <string name="status_starting">Mac · starting</string>
+    <string name="status_waiting">Mac · waiting for data</string>
+    <string name="status_no_token">Mac · token needed: connect the phone by USB</string>
+    <string name="status_refused">Mac · the server refused (code %1$d)</string>
+    <string name="status_offline">Mac · no connection</string>
+
+    <string name="all_hidden">All blocks are hidden</string>
+    <string name="all_hidden_hint">Tap the gear in the corner to bring them back</string>
+    <string name="weather_loading">Loading weather…</string>
+    <string name="weather_unavailable">Weather unavailable</string>
+    <string name="no_city">No city chosen</string>
+    <string name="choose_city_hint">Tap to choose a city</string>
+    <string name="feels">feels %1$s</string>
+    <string name="new_alert">New notification</string>
+    <string name="alerts_start">Start deskstats on the Mac and connect the phone by USB.</string>
+    <string name="alerts_denied">macOS does not let the server read notifications: give it Full Disk Access.</string>
+    <string name="alerts_server_off">Notifications are off on the server.</string>
+    <string name="alerts_off">Mac notifications are off in Settings.</string>
+    <string name="alerts_none">No new notifications.</string>
+    <string name="battery_mouse">Mouse</string>
+    <string name="battery_keyboard">Keyboard</string>
+    <string name="battery_trackpad">Trackpad</string>
+    <string name="battery_device">Device</string>
+    <string name="battery_waiting">Mouse and keyboard charge will appear when the Mac answers</string>
+    <string name="battery_none">No wireless devices with a battery</string>
+    <string name="gpu_none">no GPU data</string>
+    <string name="gpu_mem">video memory %1$s</string>
+    <string name="net_max">max %1$s</string>
+    <string name="network">Network</string>
+
+    <string name="unit_gb">GB</string>
+    <string name="unit_mb">MB</string>
+    <string name="unit_bs">B/s</string>
+    <string name="unit_kbs">KB/s</string>
+    <string name="unit_mbs">MB/s</string>
+    <string name="fmt_date">EEEE, MMMM d</string>
+    <string name="fmt_stamp">MMM d, HH:mm</string>
+    <string name="yesterday_at">yesterday %1$s</string>
+
+    <string name="a11y_waiting">Mac panel: waiting for data</string>
+    <string name="a11y_stats">CPU %1$s%%, memory %2$s of %3$s, download %4$s, upload %5$s</string>
+    <string name="a11y_weather">%1$s: %2$d°</string>
+    <string name="a11y_alert">Last notification: %1$s, %2$s</string>
+    <string name="a11y_shown">shown</string>
+    <string name="a11y_hidden">hidden</string>
+    <string name="a11y_on">on</string>
+    <string name="a11y_off">off</string>
+
+    <string name="procs_title">Applications</string>
+    <string name="procs_no_answer">The Mac did not answer the request for applications</string>
+    <string name="procs_refused">The Mac did not give the list of applications (code %1$d)</string>
+    <string name="procs_loading">The Mac is gathering data…</string>
+    <string name="no_connection">No connection to the Mac</string>
+    <string name="procs_net_idle">No application is using the network now</string>
+    <string name="procs_gpu_idle">No application is using the GPU now</string>
+    <string name="no_data">No data</string>
+    <string name="procs_shown">Showing the first %1$d of %2$d</string>
+    <string name="procs_net">network %1$s</string>
+    <string name="procs_count">processes: %1$d</string>
+    <string name="procs_cores">%1$s cores</string>
+    <string name="procs_a11y_loading">Loading the list by %1$s load</string>
+    <string name="procs_a11y">By %1$s load: %2$s</string>
+
+    <string name="alerts_page_waiting">Waiting for data…</string>
+    <string name="alerts_page_none">No notifications in the last two days</string>
+    <string name="alerts_page_denied">macOS does not let the server read notifications</string>
+    <string name="alerts_a11y">%1$d in all. Selected: %2$s, %3$s. %4$s</string>
+
+    <string name="places_title">Time zone and city</string>
+    <string name="add_city">Add city</string>
+    <string name="places_removed">%1$s removed from the list</string>
+    <string name="undo">Undo</string>
+    <string name="places_a11y">Selected: %1$s. Cities: %2$s</string>
+    <string name="none">none</string>
+    <string name="places_empty">Add a city: the clock and the weather follow it.</string>
+    <string name="city_a11y">Cities (%1$d), by region: %2$s</string>
+    <string name="region_kyrgyzstan">Kyrgyzstan</string>
+    <string name="region_central_asia">Central Asia</string>
+    <string name="region_russia">Russia</string>
+    <string name="region_caucasus">Caucasus and Turkey</string>
+    <string name="region_middle_east">Middle East</string>
+    <string name="region_europe">Europe</string>
+    <string name="region_asia">Asia</string>
+    <string name="region_oceania">Australia and Oceania</string>
+    <string name="region_africa">Africa</string>
+    <string name="region_america">Americas</string>
+
+    <string name="blocks_title">Main screen blocks</string>
+    <string name="blocks_hint">Drag a row by its handle to change the order</string>
+    <string name="blocks_shown">Shown: %1$d/%2$d</string>
+    <string name="zone_left">Left</string>
+    <string name="zone_right">Right</string>
+    <string name="zone_row">Bottom row</string>
+    <string name="zone_top">Top</string>
+    <string name="zone_middle">Middle</string>
+    <string name="zone_bottom">Bottom</string>
+    <string name="block_clock">Clock and date</string>
+    <string name="block_clock_note">Phone time in the chosen time zone</string>
+    <string name="block_weather">Weather</string>
+    <string name="block_weather_note">Weather in the chosen city</string>
+    <string name="block_alerts">Notifications</string>
+    <string name="block_alerts_note">Mac and iPhone notifications</string>
+    <string name="block_batteries">Device batteries</string>
+    <string name="block_batteries_note">Mouse, keyboard, trackpad</string>
+    <string name="block_cpu_note">Processor load</string>
+    <string name="block_gpu_note">Graphics load</string>
+    <string name="block_ram_note">Memory in use</string>
+    <string name="block_net_note">Network speed</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="group_look">Appearance</string>
+    <string name="group_mac">Server</string>
+    <string name="set_language">Language</string>
+    <string name="lang_system">System</string>
+    <string name="lang_system_named">System (%1$s)</string>
+    <string name="set_theme">Theme</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_neon">Neon</string>
+    <string name="set_orientation">Orientation</string>
+    <string name="orient_landscape">Landscape</string>
+    <string name="orient_portrait">Portrait</string>
+    <string name="orient_auto">Auto</string>
+    <string name="set_wifi">Wi‑Fi connection</string>
+    <string name="set_wifi_hint">Without the cable, the phone needs the Mac\'s Wi‑Fi to reach it</string>
+    <string name="set_alerts">Mac notifications</string>
+    <string name="set_alerts_hint">Show the Mac\'s notifications on the panel</string>
+    <string name="set_interval">Update every</string>
+    <string name="set_weather">Weather refresh</string>
+    <string name="fmt_seconds">%1$s s</string>
+    <string name="fmt_minutes">%1$d min</string>
+    <string name="fmt_hours">%1$d h</string>
+    <string name="version">Version %1$s</string>
+
+    <string name="config_problem">DeskStats: %1$s</string>
+    <string name="config_token_kept">the token is already saved; to pair again, clear the app data</string>
+    <string name="config_bad_port">port %1$d is not valid</string>
+    <string name="config_bad_token">the token is not valid: 32 to 128 hexadecimal characters are needed</string>
+
+    <string-array name="weather">
+        <item>Clear</item>
+        <item>Mostly clear</item>
+        <item>Partly cloudy</item>
+        <item>Overcast</item>
+        <item>Fog</item>
+        <item>Drizzle</item>
+        <item>Rain</item>
+        <item>Snow</item>
+        <item>Showers</item>
+        <item>Snowfall</item>
+        <item>Thunderstorm</item>
+        <item>Cloudy</item>
+    </string-array>
+</resources>
