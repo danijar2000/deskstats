@@ -43,6 +43,8 @@ if (-not (Test-Path $built)) { throw "install.ps1: no program to install ($built
 Stop-Server
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
 Copy-Item -Force $built $exe
+# A fresh Windows profile may not have the key of the programs that start at sign-in yet.
+if (-not (Test-Path $run)) { New-Item -Path $run -Force | Out-Null }
 Set-ItemProperty -Path $run -Name deskstats -Value "`"$exe`""
 Start-Process -FilePath $exe -WorkingDirectory $dir
 

@@ -84,7 +84,8 @@ jobs:
           curl -fsS -H "Authorization: Bearer $token" 'http://127.0.0.1:8787/procs?sort=ram' | tee procs.json | head -c 300
           grep -q '"sort":"ram","total":[1-9][0-9]*,"procs":\[{"name":"' procs.json
           kill -TERM "$(pidof deskstats)"
-          sleep 1
+          # It stays up to three seconds more, so that a phone that is reading it learns that it stops.
+          for _ in 1 2 3 4 5 6 7 8; do pidof deskstats > /dev/null || break; sleep 1; done
           cat server.log
           if pidof deskstats; then echo 'still running after SIGTERM'; exit 1; fi
       - name: Package
@@ -134,6 +135,7 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File deskstats-server/install.ps1
           if ($LASTEXITCODE -ne 0) { throw 'install.ps1 failed' }
+          if (-not (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name deskstats)) { throw 'does not start at sign-in' }
           $token = (Get-Content "$env:APPDATA\deskstats\token" -Raw).Trim()
           $info = curl.exe -fsS -H 'X-Deskstats: 1' http://127.0.0.1:8787/info
           $info
@@ -150,6 +152,7 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File deskstats-server/install.ps1 -Uninstall
           if (Get-Process -Name deskstats -ErrorAction SilentlyContinue) { throw 'still running after uninstall' }
           if (Test-Path "$env:LOCALAPPDATA\deskstats\deskstats.exe") { throw 'not removed' }
+          if (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name deskstats -ErrorAction SilentlyContinue) { throw 'still starts at sign-in' }
       - uses: actions/upload-artifact@v4
         with:
           name: deskstats-server-windows-x86_64
