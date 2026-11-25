@@ -4,6 +4,7 @@ mod crypto;
 mod ffi;
 mod http;
 mod lan;
+mod pair;
 mod power;
 mod procs;
 mod sampler;
@@ -125,7 +126,11 @@ fn main() {
 
     power::start();
     let weather = Arc::new(weather::Weather::new(Duration::from_secs(settings.weather_min.load(Ordering::Relaxed) * 60)));
-    let shared = Arc::new(http::Shared::new(token.clone(), PORT, weather.clone(), settings.clone()));
+    let computer = sampler::computer_name();
+    let about = lan::about_json(&crypto::id_of(&token), &computer, &sampler::model_name(), PORT);
+    let mut shared = http::Shared::new(token.clone(), PORT, weather.clone(), settings.clone());
+    shared.about = about.clone();
+    let shared = Arc::new(shared);
     {
         let shared = shared.clone();
         if !spawn("accept", move || http::run(listener, shared)) {
@@ -135,7 +140,7 @@ fn main() {
     {
         let keys = crypto::Keys::from_token(&token);
         let settings = settings.clone();
-        spawn("beacon", move || lan::run_beacon(keys, PORT, settings));
+        spawn("beacon", move || lan::run_beacon(keys, PORT, about, settings));
     }
     spawn("weather", move || weather::run(weather));
     match adb::find() {
@@ -148,7 +153,7 @@ fn main() {
 
     let machine = sampler::Host::new();
     let cpu_name = json_escape(&sampler::sysctl_string("machdep.cpu.brand_string"));
-    let name = json_escape(&sampler::computer_name());
+    let name = json_escape(&computer);
     let ram_total = sampler::sysctl_u64("hw.memsize");
     let page_size = sampler::sysctl_u64("hw.pagesize").max(4096);
     let gpu = sampler::Gpu::new();
@@ -172,7 +177,8 @@ fn main() {
             if prev.take().is_some() {
                 *shared.sample.lock().unwrap_or_else(|e| e.into_inner()) = None;
             }
-            nap(interval.min(Duration::from_millis(200)));
+            // Asleep: nothing is sampled until a phone asks again. The second-long timeout only checks for a stop.
+            shared.wait_for_request(Duration::from_secs(1));
             continue;
         }
         let Some((prev_cpu, prev_net, prev_at)) = prev.take() else {

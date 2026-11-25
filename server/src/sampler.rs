@@ -39,6 +39,37 @@ pub fn computer_name() -> String {
     })
 }
 
+/// What kind of Mac this is, such as "MacBook Air (M2, 2022)" or "Mac mini (2024)"; the model code if the system does not say.
+pub fn model_name() -> String {
+    let name = unsafe {
+        let entry = IORegistryEntryFromPath(0, c"IODeviceTree:/product".as_ptr());
+        if entry == 0 {
+            None
+        } else {
+            let key = cf_string("product-name");
+            let value = IORegistryEntryCreateCFProperty(entry, key, std::ptr::null(), 0);
+            let out = cf_data_text(value);
+            for object in [key, value] {
+                if !object.is_null() {
+                    CFRelease(object);
+                }
+            }
+            IOObjectRelease(entry);
+            out
+        }
+    };
+    name.filter(|n| !n.is_empty()).unwrap_or_else(|| sysctl_string("hw.model"))
+}
+
+unsafe fn cf_data_text(value: *const c_void) -> Option<String> {
+    if value.is_null() || CFGetTypeID(value) != CFDataGetTypeID() {
+        return None;
+    }
+    let bytes = std::slice::from_raw_parts(CFDataGetBytePtr(value), CFDataGetLength(value).max(0) as usize);
+    let end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
+    Some(String::from_utf8_lossy(&bytes[..end]).trim().to_string())
+}
+
 pub struct Host(u32);
 
 impl Host {

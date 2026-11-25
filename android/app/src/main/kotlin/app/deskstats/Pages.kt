@@ -28,6 +28,14 @@ abstract class Page(context: Context, protected val host: Host) : View(context) 
         var options: Options
         val servers: Servers
         fun changeServers(change: (Servers) -> Servers)
+        /** Macs heard on the Wi‑Fi lately, paired or not. */
+        val nearby: List<Nearby>
+        /** Asks the Macs on the Wi‑Fi to answer: they announce themselves only when asked. */
+        fun discover()
+        /** Looks for Macs address by address, for networks that drop broadcasts. */
+        fun scan()
+        /** Keeps a Mac the user let in over Wi‑Fi, shows it and goes home. */
+        fun pairedOverWifi(mac: Nearby, token: String)
     }
 
     protected abstract val title: String

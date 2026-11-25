@@ -34,7 +34,7 @@ Netzwerklast mit Live-Diagrammen.
 
 - **Ein Mac** mit macOS 11 oder neuer (Apple Silicon oder Intel).
 - **Ein Android-Telefon** mit Android 2.3 oder neuer. Die USB-Verbindung braucht Android 5.0;
-  ältere Telefone nutzen nur WLAN, brauchen aber ebenfalls einmal das Kabel.
+  ältere Telefone nutzen nur WLAN.
 - **adb** auf dem Mac für die USB-Verbindung: `brew install android-platform-tools`.
 - **USB-Debugging** auf dem Telefon: Einstellungen → Über das Telefon, siebenmal auf
   „Build-Nummer“ tippen, dann Einstellungen → Entwickleroptionen → USB-Debugging. Erlaube das
@@ -82,9 +82,11 @@ an, kommt aber nichts an, entferne Deskstats aus der Liste (−) und füge
 - **Das Zahnrad** öffnet die Einstellungen: Sprache (8 Sprachen), Design (dunkel, hell, Neon),
   Ausrichtung (quer, hoch, auto), die Blöcke des Startbildschirms, WLAN-Verbindung,
   Mac-Mitteilungen, Aktualisierungsintervall und Wetteraktualisierung.
-- **Mehrere Macs**: Verbinde das Telefon einmal per Kabel mit jedem Mac, es merkt sich alle.
-  Ein Wisch über den Hauptbildschirm nach links oder rechts wechselt den Mac; die Punkte oben
-  zeigen, welcher angezeigt wird. Die Liste (× vergisst einen Mac) steht in den Einstellungen unter Macs.
+- **Mehrere Macs**: Macs mit deskstats im selben WLAN erscheinen in den Einstellungen unter Macs, wie
+  Geräte in LocalSend. Tippe auf einen: Telefon und Mac zeigen denselben sechsstelligen Code, und der
+  Mac fragt, ob er das Telefon hereinlassen soll. Einmal per Kabel verbunden, wird ein Mac ebenfalls
+  hinzugefügt. Ein Wisch über den Hauptbildschirm nach links oder rechts wechselt den Mac; die Punkte
+  oben zeigen, welcher angezeigt wird. × vergisst einen Mac.
 - **Zurück** schließt eine Seite; eine unbeachtete Seite schließt sich nach ein paar Minuten
   von selbst.
 
@@ -125,9 +127,12 @@ von Hand entfernen.
 ## Sicherheit
 
 Telefon und Mac verschlüsseln alles, was sie einander senden, mit einem Schlüssel, den das
-Telefon einmalig über das Kabel erhält; der Schlüssel selbst geht nie über das Netzwerk.
-Anfragen ohne ihn werden abgelehnt, bevor irgendetwas ausgeführt wird. Nichts verlässt den Mac
-außer den Koordinaten der gewählten Stadt, die für das Wetter an open-meteo.com gesendet werden.
+Telefon über das Kabel erhält oder über WLAN, sobald der Benutzer des Mac es erlaubt: Dann einigen
+sich Telefon und Mac per ECDH (P-256) auf ein Geheimnis, beide zeigen einen sechsstelligen Code
+daraus, und der Schlüssel reist damit verschlüsselt. Anfragen ohne Schlüssel werden abgelehnt, bevor
+irgendetwas ausgeführt wird. Jeder Mac meldet im lokalen Netzwerk Namen, Modell und Adresse, damit
+Telefone ihn auflisten können; sonst ist nichts offen. Nichts verlässt den Mac außer den Koordinaten
+der gewählten Stadt, die für das Wetter an open-meteo.com gesendet werden.
 
 ## Aus dem Quellcode bauen
 

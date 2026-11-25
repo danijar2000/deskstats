@@ -6,7 +6,7 @@ use crate::weather::Weather;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Shutdown, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 const MAX_CONNECTIONS: usize = 16;
@@ -45,6 +45,13 @@ pub struct Shared {
     pub token: String,
     pub keys: Keys,
     pub port: u16,
+    /// What /info answers: {"app":"deskstats","id":…,"name":…,"model":…,"port":…}.
+    pub about: String,
+    pub pairing: Arc<crate::pair::Pairing>,
+    /// Shows the Allow/Deny dialog; tests put a stand-in here.
+    pub ask_user: fn(&str, &str, &str) -> bool,
+    /// Rung by every request for data, so that the sampler sleeps until there is someone to sample for.
+    asked: (Mutex<()>, Condvar),
     connections: Mutex<Vec<Connection>>,
     next_id: AtomicU64,
     addresses: Mutex<(Option<Instant>, Vec<Ipv4Addr>)>,
@@ -63,19 +70,31 @@ impl Shared {
             token,
             keys,
             port,
+            about: String::from("{}"),
+            pairing: Arc::default(),
+            ask_user: crate::pair::ask_user,
+            asked: (Mutex::new(()), Condvar::new()),
             connections: Mutex::new(Vec::new()),
             next_id: AtomicU64::new(0),
             addresses: Mutex::new((None, Vec::new())),
         }
     }
 
+    fn ring(&self) {
+        let _guard = self.asked.0.lock().unwrap_or_else(|e| e.into_inner());
+        self.asked.1.notify_all();
+    }
+
+    /// Sleeps until a phone asks for data or [most] passes.
+    pub fn wait_for_request(&self, most: Duration) {
+        let guard = self.asked.0.lock().unwrap_or_else(|e| e.into_inner());
+        let _ = self.asked.1.wait_timeout(guard, most);
+    }
+
     fn arrived_on_own_network(&self, stream: &TcpStream) -> bool {
         let Ok(IpAddr::V4(to)) = stream.local_addr().map(|a| a.ip()) else { return false };
         if to.is_loopback() {
             return true;
-        }
-        if !self.settings.lan.load(Ordering::Relaxed) {
-            return false;
         }
         let mut cache = self.addresses.lock().unwrap_or_else(|e| e.into_inner());
         let stale = cache.0.is_none_or(|t| t.elapsed() >= Duration::from_secs(1));
@@ -144,6 +163,8 @@ pub struct Request<'a> {
     pub origin: bool,
     pub authorization: Option<&'a str>,
     pub body: bool,
+    /// The X-Deskstats header: a browser cannot send it to another site without asking first.
+    pub app: bool,
 }
 
 pub fn parse(head: &[u8]) -> Option<Request<'_>> {
@@ -153,7 +174,7 @@ pub fn parse(head: &[u8]) -> Option<Request<'_>> {
     let method = first.next()?;
     let target = first.next()?;
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
-    let mut request = Request { method, path, query, host: None, origin: false, authorization: None, body: false };
+    let mut request = Request { method, path, query, host: None, origin: false, authorization: None, body: false, app: false };
     for line in lines {
         let Some((name, value)) = line.split_once(':') else { continue };
         let value = value.trim();
@@ -161,6 +182,8 @@ pub fn parse(head: &[u8]) -> Option<Request<'_>> {
             request.host = Some(value);
         } else if name.eq_ignore_ascii_case("origin") {
             request.origin = true;
+        } else if name.eq_ignore_ascii_case("x-deskstats") {
+            request.app = true;
         } else if name.eq_ignore_ascii_case("authorization") {
             request.authorization = Some(value);
         } else if name.eq_ignore_ascii_case("transfer-encoding") || (name.eq_ignore_ascii_case("content-length") && value != "0") {
@@ -195,7 +218,10 @@ fn answer(target: &str, shared: &Shared, local: bool) -> (u16, String) {
     if path != "/stats" && path != "/procs" {
         return (404, error_json("not found"));
     }
-    shared.last_request_ms.store(now_ms(), Ordering::Relaxed);
+    let woken = now_ms().saturating_sub(shared.last_request_ms.swap(now_ms(), Ordering::Relaxed)) > 1000;
+    if woken {
+        shared.ring();
+    }
     if local {
         shared.last_local_ms.store(now_ms(), Ordering::Relaxed);
     }
@@ -237,7 +263,13 @@ pub fn respond(request: &Request, shared: &Shared, local: bool) -> Reply {
     if request.body {
         return refuse("400 Bad Request", "a request body is not accepted");
     }
+    if matches!(request.path, "/info" | "/pair" | "/pair/wait") {
+        return open_door(request, shared);
+    }
     if request.path == "/q" {
+        if !local && !shared.settings.lan.load(Ordering::Relaxed) {
+            return refuse("403 Forbidden", "wifi is off on this Mac");
+        }
         let mut plain = String::new();
         let Some((nonce, target)) = unseal(request.query, &shared.keys, &mut plain) else {
             return refuse("401 Unauthorized", "not sealed with the token");
@@ -268,6 +300,55 @@ pub fn respond(request: &Request, shared: &Shared, local: bool) -> Reply {
         _ => "503 Service Unavailable",
     };
     Reply { status, body: json.into_bytes(), sealed: false, trusted: true }
+}
+
+/// What any phone on the network may ask without the token: who this Mac is, and to be let in.
+fn open_door(request: &Request, shared: &Shared) -> Reply {
+    use crate::pair::{Outcome, Start};
+    let reply = |status, body: String| Reply { status, body: body.into_bytes(), sealed: false, trusted: false };
+    // An address, not a name: a web page that points a name of its own at this Mac does not get in (DNS rebinding).
+    let by_address = request.host.is_some_and(|h| h.rsplit_once(':').map_or(h, |(ip, _)| ip).parse::<Ipv4Addr>().is_ok());
+    if !request.app || !by_address {
+        return reply("403 Forbidden", error_json("not the deskstats app"));
+    }
+    match request.path {
+        "/info" => reply("200 OK", shared.about.clone()),
+        "/pair" => {
+            let Some(key) = param(request.query, "k").and_then(crate::crypto::unhex) else {
+                return reply("400 Bad Request", error_json("no key"));
+            };
+            let phone = crate::pair::decode(param(request.query, "n").unwrap_or(""), 40);
+            let phone = if phone.is_empty() { String::from("Android") } else { phone };
+            let language = param(request.query, "l").unwrap_or("en").chars().take(2).collect::<String>();
+            match shared.pairing.start(&key) {
+                Start::Busy => reply("429 Too Many Requests", error_json("busy")),
+                Start::BadKey => reply("400 Bad Request", error_json("bad key")),
+                Start::Started { mac_key, session, code } => {
+                    let (pairing, settings, ask, id) = (shared.pairing.clone(), shared.settings.clone(), shared.ask_user, session.clone());
+                    let asked = std::thread::Builder::new().name("pair".into()).spawn(move || {
+                        let allowed = ask(&phone, &code, &language);
+                        if allowed {
+                            // The phone was let in over Wi‑Fi, so it is going to come back over Wi‑Fi.
+                            settings.lan.store(true, Ordering::Relaxed);
+                            settings.save();
+                        }
+                        pairing.decide(&id, allowed);
+                    });
+                    if asked.is_err() {
+                        shared.pairing.decide(&session, false);
+                        return reply("503 Service Unavailable", error_json("busy"));
+                    }
+                    reply("200 OK", format!("{{\"k\":\"{}\",\"s\":\"{session}\"}}", crate::crypto::hex(&mac_key)))
+                }
+            }
+        }
+        _ => match shared.pairing.wait(param(request.query, "s").unwrap_or(""), &shared.token, crate::pair::WAIT) {
+            Outcome::Token(sealed) => reply("200 OK", format!("{{\"t\":\"{sealed}\"}}")),
+            Outcome::Denied => reply("403 Forbidden", error_json("denied")),
+            Outcome::Waiting => reply("202 Accepted", String::from("{\"wait\":true}")),
+            Outcome::Unknown => reply("404 Not Found", error_json("no such pairing")),
+        },
+    }
 }
 
 fn serve(mut stream: TcpStream, shared: &Shared, trusted: &AtomicBool) {
@@ -362,6 +443,7 @@ mod tests {
 
     fn shared() -> Shared {
         let s = starting();
+        s.settings.lan.store(true, Ordering::Relaxed);
         *s.sample.lock().unwrap() =
             Some(Sample { head: "{\"ts\":1,".into(), alerts: "\"alerts\":[1],".into(), alerts_full: "\"alerts\":[1,2],".into() });
         s
@@ -437,6 +519,77 @@ mod tests {
         assert!(weather("/stats?place=91,0").ends_with("\"weather\":null}"));
         assert!(weather("/stats?place=abc").ends_with("\"weather\":null}"));
         assert!(weather("/stats?place=42.87,74.59").ends_with("\"weather\":null}"));
+    }
+
+    fn allow(_: &str, _: &str, _: &str) -> bool {
+        true
+    }
+
+    fn deny(_: &str, _: &str, _: &str) -> bool {
+        false
+    }
+
+    fn reply(s: &Shared, head: &str) -> (&'static str, String) {
+        let r = respond(&parse(head.as_bytes()).unwrap(), s, false);
+        (r.status, String::from_utf8(r.body).unwrap())
+    }
+
+    #[test]
+    fn info_only_for_the_app_and_by_address() {
+        let mut s = shared();
+        s.about = "{\"app\":\"deskstats\"}".into();
+        assert_eq!(reply(&s, "GET /info HTTP/1.1\r\nHost: 192.168.1.5:8787\r\nX-Deskstats: 1"), ("200 OK", s.about.clone()));
+        assert_eq!(reply(&s, "GET /info HTTP/1.1\r\nHost: 192.168.1.5:8787").0, "403 Forbidden");
+        assert_eq!(reply(&s, "GET /info HTTP/1.1\r\nHost: evil.example:8787\r\nX-Deskstats: 1").0, "403 Forbidden");
+        assert_eq!(reply(&s, "GET /info HTTP/1.1\r\nX-Deskstats: 1").0, "403 Forbidden");
+        assert_eq!(reply(&s, "GET /info HTTP/1.1\r\nHost: 192.168.1.5\r\nX-Deskstats: 1\r\nOrigin: http://x").0, "403 Forbidden");
+    }
+
+    #[test]
+    fn wifi_off_refuses_sealed_requests_from_the_network() {
+        let s = shared();
+        assert_eq!(ask(&sealed(&s, "/stats"), &s, false), "200 OK");
+        s.settings.lan.store(false, Ordering::Relaxed);
+        assert_eq!(ask(&sealed(&s, "/stats"), &s, false), "403 Forbidden");
+        assert_eq!(ask(&sealed(&s, "/stats"), &s, true), "200 OK");
+    }
+
+    fn pair_once(s: &Shared) -> (crate::pair::EcKey, &'static str, String) {
+        let phone = crate::pair::EcKey::new().unwrap();
+        let head = format!("GET /pair?k={}&n=Galaxy+J7&l=ru HTTP/1.1\r\nHost: 192.168.1.5:8787\r\nX-Deskstats: 1", crate::crypto::hex(&phone.public));
+        let (status, body) = reply(s, &head);
+        assert_eq!(status, "200 OK", "{body}");
+        let started = |key: &str| body.split(&format!("\"{key}\":\"")).nth(1).unwrap().split('"').next().unwrap().to_string();
+        let mac_key = crate::crypto::unhex(&started("k")).unwrap();
+        let session = started("s");
+        let secret = phone.shared(&mac_key).unwrap();
+        let mut answer = reply(s, &format!("GET /pair/wait?s={session} HTTP/1.1\r\nHost: 192.168.1.5:8787\r\nX-Deskstats: 1"));
+        while answer.0 == "202 Accepted" {
+            answer = reply(s, &format!("GET /pair/wait?s={session} HTTP/1.1\r\nHost: 192.168.1.5:8787\r\nX-Deskstats: 1"));
+        }
+        let token = answer.1.strip_prefix("{\"t\":\"").and_then(|t| t.strip_suffix("\"}")).map(|t| {
+            String::from_utf8(Keys::for_pairing(&secret).open(&crate::crypto::unhex(t).unwrap()).unwrap()).unwrap()
+        });
+        (phone, answer.0, token.unwrap_or(answer.1))
+    }
+
+    #[test]
+    fn pairing_over_wifi_hands_over_the_token_and_turns_wifi_on() {
+        let mut s = shared();
+        s.settings.lan.store(false, Ordering::Relaxed);
+        s.ask_user = allow;
+        let (_, status, token) = pair_once(&s);
+        assert_eq!((status, token.as_str()), ("200 OK", TOKEN));
+        assert!(s.settings.lan.load(Ordering::Relaxed));
+        let mut s = shared();
+        s.settings.lan.store(false, Ordering::Relaxed);
+        s.ask_user = deny;
+        let (_, status, _) = pair_once(&s);
+        assert_eq!(status, "403 Forbidden");
+        assert!(!s.settings.lan.load(Ordering::Relaxed));
+        assert_eq!(reply(&s, &format!("GET /pair?k={} HTTP/1.1\r\nHost: 192.168.1.5:8787\r\nX-Deskstats: 1", "04".repeat(65))).0, "429 Too Many Requests");
+        assert_eq!(reply(&shared(), "GET /pair?k=00 HTTP/1.1\r\nHost: 192.168.1.5:8787\r\nX-Deskstats: 1").0, "400 Bad Request");
+        assert_eq!(reply(&s, "GET /pair/wait?s=x HTTP/1.1\r\nHost: 192.168.1.5:8787\r\nX-Deskstats: 1").0, "404 Not Found");
     }
 
     fn server() -> (Arc<Shared>, std::net::SocketAddr) {

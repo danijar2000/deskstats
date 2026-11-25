@@ -59,6 +59,7 @@ pub const HOST_VM_INFO64: c_int = 4;
 pub const HOST_VM_INFO64_COUNT: u32 = (std::mem::size_of::<VmStatistics64>() / 4) as u32;
 pub const PROCESSOR_CPU_LOAD_INFO: c_int = 2;
 pub const CF_UTF8: u32 = 0x0800_0100;
+pub const CF_NUMBER_SINT32: c_int = 3;
 pub const CF_NUMBER_SINT64: c_int = 4;
 pub const REGISTRY_SEARCH_PARENTS: u32 = 3;
 pub const SQLITE_OPEN_READONLY: c_int = 1;
@@ -104,6 +105,17 @@ extern "C" {
     pub fn IOServiceGetMatchingServices(port: u32, matching: *mut c_void, iter: *mut u32) -> c_int;
     pub fn IOIteratorNext(iter: u32) -> u32;
     pub fn IOObjectRelease(object: u32) -> c_int;
+    pub fn IORegistryEntryFromPath(port: u32, path: *const c_char) -> u32;
+    pub fn IONotificationPortCreate(main_port: u32) -> *mut c_void;
+    pub fn IONotificationPortGetRunLoopSource(port: *mut c_void) -> *mut c_void;
+    pub fn IOServiceAddMatchingNotification(
+        port: *mut c_void,
+        kind: *const c_char,
+        matching: *mut c_void,
+        callback: extern "C" fn(*mut c_void, u32),
+        refcon: *mut c_void,
+        iterator: *mut u32,
+    ) -> c_int;
     pub fn IORegistryEntryGetChildIterator(entry: u32, plane: *const c_char, iter: *mut u32) -> c_int;
     pub fn IORegistryEntryCreateCFProperty(
         entry: u32,
@@ -123,6 +135,10 @@ extern "C" {
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
     pub static kCFBooleanTrue: *const c_void;
+    pub static kCFRunLoopDefaultMode: *const c_void;
+    pub fn CFRunLoopGetCurrent() -> *mut c_void;
+    pub fn CFRunLoopAddSource(run_loop: *mut c_void, source: *mut c_void, mode: *const c_void);
+    pub fn CFRunLoopRun();
     pub static kCFTypeDictionaryKeyCallBacks: u8;
     pub static kCFTypeDictionaryValueCallBacks: u8;
     pub fn CFStringCreateWithCString(alloc: *const c_void, s: *const c_char, enc: u32) -> *const c_void;
@@ -146,6 +162,10 @@ extern "C" {
     pub fn CFArrayGetValueAtIndex(array: *const c_void, index: isize) -> *const c_void;
     pub fn CFArrayGetTypeID() -> usize;
     pub fn CFDataCreate(alloc: *const c_void, bytes: *const u8, length: isize) -> *const c_void;
+    pub fn CFDataGetBytePtr(data: *const c_void) -> *const u8;
+    pub fn CFDataGetLength(data: *const c_void) -> isize;
+    pub fn CFDataGetTypeID() -> usize;
+    pub fn CFNumberCreate(alloc: *const c_void, kind: c_int, value: *const c_void) -> *const c_void;
     pub fn CFPropertyListCreateWithData(
         alloc: *const c_void,
         data: *const c_void,
@@ -156,6 +176,27 @@ extern "C" {
     pub fn CFURLCopyLastPathComponent(url: *const c_void) -> *const c_void;
     pub fn CFGetTypeID(object: *const c_void) -> usize;
     pub fn CFRelease(object: *const c_void);
+}
+
+#[link(name = "Security", kind = "framework")]
+extern "C" {
+    pub static kSecAttrKeyType: *const c_void;
+    pub static kSecAttrKeyTypeECSECPrimeRandom: *const c_void;
+    pub static kSecAttrKeySizeInBits: *const c_void;
+    pub static kSecAttrKeyClass: *const c_void;
+    pub static kSecAttrKeyClassPublic: *const c_void;
+    pub static kSecKeyAlgorithmECDHKeyExchangeStandard: *const c_void;
+    pub fn SecKeyCreateRandomKey(parameters: *const c_void, error: *mut *const c_void) -> *const c_void;
+    pub fn SecKeyCopyPublicKey(key: *const c_void) -> *const c_void;
+    pub fn SecKeyCopyExternalRepresentation(key: *const c_void, error: *mut *const c_void) -> *const c_void;
+    pub fn SecKeyCreateWithData(data: *const c_void, attributes: *const c_void, error: *mut *const c_void) -> *const c_void;
+    pub fn SecKeyCopyKeyExchangeResult(
+        private_key: *const c_void,
+        algorithm: *const c_void,
+        public_key: *const c_void,
+        parameters: *const c_void,
+        error: *mut *const c_void,
+    ) -> *const c_void;
 }
 
 #[link(name = "SystemConfiguration", kind = "framework")]
