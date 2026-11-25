@@ -71,6 +71,27 @@ demi-minute. Après une mise à jour, macOS les redemande ; si un interrupteur e
 que rien n'arrive, retirez Deskstats de la liste (−) puis ajoutez à nouveau
 `~/Applications/Deskstats.app`.
 
+### Linux et Windows
+
+Le serveur fonctionne aussi sous Linux (x86-64 et ARM64, toute distribution avec systemd) et sous Windows 10 ou ultérieur (64 bits). L'app du téléphone est la même.
+
+Linux, dans un terminal :
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash
+```
+
+Windows, dans PowerShell :
+
+```powershell
+irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1 | iex
+```
+
+- Sous Linux, le serveur se trouve dans `~/.local/bin/deskstats` et démarre à l'ouverture de session comme service utilisateur systemd ; sous Windows, il se trouve dans `%LOCALAPPDATA%\deskstats`, démarre à l'ouverture de session et écrit son journal dans `%APPDATA%\deskstats\log.txt`.
+- Pour le câble USB, installez adb : `sudo apt install android-tools-adb` (ou le paquet de votre distribution) ou `winget install Google.PlatformTools`.
+- Pour le Wi‑Fi, ouvrez TCP 8787 et UDP 8788 dans le pare-feu. Pour laisser entrer un téléphone par Wi‑Fi, Linux a besoin de `zenity` ou de `kdialog` pour poser la question.
+- Pas encore disponible sur ces systèmes : les notifications, la batterie de la souris et du clavier sous Windows, la charge du GPU sous Windows et sous Linux hors AMD, et l'extinction du téléphone avec l'écran.
+
 ## Utilisation
 
 - **Les cartes de charge** (CPU, GPU, RAM, Réseau) ouvrent les applications du Mac triées selon

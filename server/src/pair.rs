@@ -3,112 +3,15 @@
 //! Someone in the middle would get other secrets on both sides, and so other codes.
 
 use crate::crypto::{hex, hmac, random_hex, Keys};
-use crate::ffi::*;
+pub use crate::sys::ec::{EcKey, POINT_LEN};
 use crate::util::log;
-use std::ffi::c_void;
 use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-pub const POINT_LEN: usize = 65;
 const DIALOG: Duration = Duration::from_secs(60);
 const FORGET_AFTER: Duration = Duration::from_secs(90);
 const AFTER_DENIAL: Duration = Duration::from_secs(5);
 pub const WAIT: Duration = Duration::from_secs(20);
-
-/// An ephemeral P-256 key pair from the Security framework.
-pub struct EcKey {
-    private: *const c_void,
-    pub public: [u8; POINT_LEN],
-}
-
-unsafe impl Send for EcKey {}
-
-impl Drop for EcKey {
-    fn drop(&mut self) {
-        unsafe { CFRelease(self.private) };
-    }
-}
-
-unsafe fn release(objects: &[*const c_void]) {
-    for object in objects {
-        if !object.is_null() {
-            CFRelease(*object);
-        }
-    }
-}
-
-unsafe fn data_bytes(data: *const c_void) -> Option<Vec<u8>> {
-    if data.is_null() || CFGetTypeID(data) != CFDataGetTypeID() {
-        return None;
-    }
-    Some(std::slice::from_raw_parts(CFDataGetBytePtr(data), CFDataGetLength(data).max(0) as usize).to_vec())
-}
-
-unsafe fn dictionary(pairs: &[(*const c_void, *const c_void)]) -> *const c_void {
-    let keys: Vec<_> = pairs.iter().map(|p| p.0).collect();
-    let values: Vec<_> = pairs.iter().map(|p| p.1).collect();
-    CFDictionaryCreate(
-        std::ptr::null(),
-        keys.as_ptr(),
-        values.as_ptr(),
-        pairs.len() as isize,
-        &kCFTypeDictionaryKeyCallBacks,
-        &kCFTypeDictionaryValueCallBacks,
-    )
-}
-
-impl EcKey {
-    pub fn new() -> Option<EcKey> {
-        unsafe {
-            let bits: i32 = 256;
-            let size = CFNumberCreate(std::ptr::null(), CF_NUMBER_SINT32, &bits as *const i32 as *const c_void);
-            let params = dictionary(&[(kSecAttrKeyType, kSecAttrKeyTypeECSECPrimeRandom), (kSecAttrKeySizeInBits, size)]);
-            let private = SecKeyCreateRandomKey(params, std::ptr::null_mut());
-            release(&[size, params]);
-            if private.is_null() {
-                return None;
-            }
-            let public = SecKeyCopyPublicKey(private);
-            let data = if public.is_null() { std::ptr::null() } else { SecKeyCopyExternalRepresentation(public, std::ptr::null_mut()) };
-            let bytes = data_bytes(data);
-            release(&[public, data]);
-            match bytes.and_then(|b| <[u8; POINT_LEN]>::try_from(b).ok()) {
-                Some(public) => Some(EcKey { private, public }),
-                None => {
-                    CFRelease(private);
-                    None
-                }
-            }
-        }
-    }
-
-    /// The X coordinate of our private key times their point; None if the point is not on the curve.
-    pub fn shared(&self, theirs: &[u8]) -> Option<[u8; 32]> {
-        if theirs.len() != POINT_LEN || theirs[0] != 4 {
-            return None;
-        }
-        unsafe {
-            let bits: i32 = 256;
-            let size = CFNumberCreate(std::ptr::null(), CF_NUMBER_SINT32, &bits as *const i32 as *const c_void);
-            let attributes = dictionary(&[
-                (kSecAttrKeyType, kSecAttrKeyTypeECSECPrimeRandom),
-                (kSecAttrKeyClass, kSecAttrKeyClassPublic),
-                (kSecAttrKeySizeInBits, size),
-            ]);
-            let data = CFDataCreate(std::ptr::null(), theirs.as_ptr(), theirs.len() as isize);
-            let public = SecKeyCreateWithData(data, attributes, std::ptr::null_mut());
-            let empty = dictionary(&[]);
-            let secret = if public.is_null() {
-                std::ptr::null()
-            } else {
-                SecKeyCopyKeyExchangeResult(self.private, kSecKeyAlgorithmECDHKeyExchangeStandard, public, empty, std::ptr::null_mut())
-            };
-            let bytes = data_bytes(secret);
-            release(&[size, attributes, data, public, empty, secret]);
-            bytes.and_then(|b| <[u8; 32]>::try_from(b).ok())
-        }
-    }
-}
 
 /// The six digits both screens show. Both public keys go in, so a swapped key changes the code.
 pub fn code(secret: &[u8], phone: &[u8], mac: &[u8]) -> String {
@@ -213,27 +116,12 @@ impl Pairing {
     }
 }
 
-/// Asks the user of this Mac in a dialog; true only for a click on Allow.
+/// Asks the user of this computer in a dialog; true only for a click on Allow.
 pub fn ask_user(phone: &str, code: &str, language: &str) -> bool {
     let (message, deny, allow) = words(language);
     let spaced = format!("{} {}", &code[..3], &code[3..]);
     let text = message.replace("{phone}", phone).replace("{code}", &spaced);
-    let script = [
-        "on run argv",
-        "set r to display dialog (item 1 of argv) with title \"Deskstats\" buttons {item 2 of argv, item 3 of argv} default button 2 with icon caution giving up after (item 4 of argv as integer)",
-        "if gave up of r then return \"\"",
-        "return button returned of r",
-        "end run",
-    ];
-    let mut args: Vec<&str> = Vec::new();
-    for line in &script {
-        args.push("-e");
-        args.push(line);
-    }
-    let seconds = DIALOG.as_secs().to_string();
-    args.extend_from_slice(&["--", &text, deny, allow, &seconds]);
-    let answer = crate::util::run("/usr/bin/osascript", &args, DIALOG + Duration::from_secs(10));
-    let allowed = answer.as_ref().is_some_and(|(ok, out)| *ok && out.trim() == allow);
+    let allowed = crate::sys::ask(&text, deny, allow, DIALOG);
     log(if allowed { "pair: the user let a phone in over Wi-Fi" } else { "pair: a phone was not let in" });
     allowed
 }

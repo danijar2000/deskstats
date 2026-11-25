@@ -1,4 +1,4 @@
-use crate::ffi::*;
+use super::ffi::*;
 use crate::util::{json_escape, log, normalize, now_ms, truncate};
 use std::collections::HashMap;
 use std::cell::Cell;
@@ -477,6 +477,13 @@ impl Screen {
 
 const RESTARTED: &str = "DESKSTATS_AX_RESTARTED";
 
+pub fn list_json(list: Option<&[Item]>, count: usize) -> String {
+    match list {
+        Some(items) => format!("\"alerts\":[{}],", items.iter().take(count).map(Item::json).collect::<Vec<_>>().join(",")),
+        None => String::from("\"alerts\":null,"),
+    }
+}
+
 pub fn accessibility_granted() -> bool {
     unsafe { AXIsProcessTrustedWithOptions(std::ptr::null()) != 0 }
 }
@@ -594,6 +601,17 @@ fn find_process(name: &str) -> Option<c_int> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn list_json_escapes_and_caps() {
+        let item = Item { id: 7, ts: 5, app: "Mail".into(), title: "a \"b\"".into(), subtitle: String::new(), body: "c\nd".into() };
+        assert_eq!(
+            list_json(Some(std::slice::from_ref(&item)), 6),
+            "\"alerts\":[{\"id\":7,\"ts\":5,\"app\":\"Mail\",\"title\":\"a \\\"b\\\"\",\"subtitle\":\"\",\"body\":\"c d\"}],"
+        );
+        assert_eq!(list_json(None, 30), "\"alerts\":null,");
+        assert_eq!(list_json(Some(&[item.clone(), item]), 1).matches("\"id\"").count(), 1);
+    }
 
     #[test]
     fn ages() {

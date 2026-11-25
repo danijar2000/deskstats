@@ -19,6 +19,7 @@
     <string name="alerts_start">Mac で deskstats を起動し、スマートフォンを USB で接続してください。</string>
     <string name="alerts_denied">macOS がサーバーに通知の読み取りを許可していません：「フルディスクアクセス」を与えてください。</string>
     <string name="alerts_server_off">サーバーで通知がオフになっています。</string>
+    <string name="alerts_unsupported">このコンピュータの通知はまだ読み取れません（Mac のみ対応）。</string>
     <string name="alerts_off">設定で Mac の通知がオフになっています。</string>
     <string name="alerts_none">新しい通知はありません。</string>
     <string name="battery_mouse">マウス</string>

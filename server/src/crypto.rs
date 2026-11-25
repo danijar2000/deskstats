@@ -1,56 +1,18 @@
-use std::ffi::c_void;
+pub use crate::sys::crypto::{hmac, sha256};
+use crate::sys::crypto::{aes_cbc, fill_random};
 
-const KCC_ENCRYPT: u32 = 0;
-const KCC_DECRYPT: u32 = 1;
-const KCC_ALGORITHM_AES: u32 = 0;
-const KCC_OPTION_PKCS7: u32 = 1;
-const KCC_HMAC_SHA256: u32 = 2;
-const KCC_SUCCESS: i32 = 0;
 pub const IV_LEN: usize = 16;
 pub const MAC_LEN: usize = 32;
 
-extern "C" {
-    fn CCCrypt(
-        op: u32,
-        alg: u32,
-        options: u32,
-        key: *const c_void,
-        key_length: usize,
-        iv: *const c_void,
-        data_in: *const c_void,
-        data_in_length: usize,
-        data_out: *mut c_void,
-        data_out_available: usize,
-        data_out_moved: *mut usize,
-    ) -> i32;
-    fn CCHmac(alg: u32, key: *const c_void, key_length: usize, data: *const c_void, data_length: usize, mac_out: *mut c_void);
-    fn CC_SHA256(data: *const c_void, len: u32, md: *mut u8) -> *mut u8;
-    fn arc4random_buf(buf: *mut c_void, nbytes: usize);
-}
-
-pub fn sha256(data: &[u8]) -> [u8; 32] {
-    let mut out = [0u8; 32];
-    unsafe { CC_SHA256(data.as_ptr() as *const c_void, data.len() as u32, out.as_mut_ptr()) };
-    out
-}
-
 pub fn random_hex(bytes: usize) -> String {
     let mut buf = vec![0u8; bytes];
-    unsafe { arc4random_buf(buf.as_mut_ptr() as *mut c_void, bytes) };
+    fill_random(&mut buf);
     hex(&buf)
 }
 
-/// The id the phone keeps a Mac under: the start of the SHA-256 of its token. It tells which announced Mac is already paired.
+/// The id the phone keeps a computer under: the start of the SHA-256 of its token. It tells which announced one is already paired.
 pub fn id_of(token: &str) -> String {
     hex(&sha256(token.to_ascii_lowercase().as_bytes())[..8])
-}
-
-pub fn hmac(key: &[u8], data: &[u8]) -> [u8; MAC_LEN] {
-    let mut out = [0u8; MAC_LEN];
-    unsafe {
-        CCHmac(KCC_HMAC_SHA256, key.as_ptr() as *const c_void, key.len(), data.as_ptr() as *const c_void, data.len(), out.as_mut_ptr() as *mut c_void)
-    };
-    out
 }
 
 pub fn hex(bytes: &[u8]) -> String {
@@ -91,8 +53,8 @@ impl Keys {
 
     pub fn seal(&self, plain: &[u8]) -> Option<Vec<u8>> {
         let mut iv = [0u8; IV_LEN];
-        unsafe { arc4random_buf(iv.as_mut_ptr() as *mut c_void, IV_LEN) };
-        let cipher = self.crypt(KCC_ENCRYPT, &iv, plain)?;
+        fill_random(&mut iv);
+        let cipher = aes_cbc(true, &self.enc, &iv, plain)?;
         let mut out = Vec::with_capacity(IV_LEN + cipher.len() + MAC_LEN);
         out.extend_from_slice(&iv);
         out.extend_from_slice(&cipher);
@@ -110,32 +72,7 @@ impl Keys {
             return None;
         }
         let (iv, cipher) = body.split_at(IV_LEN);
-        self.crypt(KCC_DECRYPT, iv, cipher)
-    }
-
-    fn crypt(&self, op: u32, iv: &[u8], input: &[u8]) -> Option<Vec<u8>> {
-        let mut out = vec![0u8; input.len() + 16];
-        let mut moved = 0usize;
-        let rc = unsafe {
-            CCCrypt(
-                op,
-                KCC_ALGORITHM_AES,
-                KCC_OPTION_PKCS7,
-                self.enc.as_ptr() as *const c_void,
-                self.enc.len(),
-                iv.as_ptr() as *const c_void,
-                input.as_ptr() as *const c_void,
-                input.len(),
-                out.as_mut_ptr() as *mut c_void,
-                out.len(),
-                &mut moved,
-            )
-        };
-        if rc != KCC_SUCCESS {
-            return None;
-        }
-        out.truncate(moved);
-        Some(out)
+        aes_cbc(false, &self.enc, iv, cipher)
     }
 }
 
@@ -153,6 +90,10 @@ mod tests {
         let mut broken = sealed.clone();
         broken[20] ^= 1;
         assert!(keys.open(&broken).is_none());
+        // AES-256-CBC with PKCS#7 padding and the tag over IV and ciphertext: the same bytes on every system.
+        assert_eq!(hex(&aes_cbc(true, &[7u8; 32], &[9u8; 16], b"deskstats").unwrap()), "b889e6f951a0ab387f507e81c21619ad");
+        assert_eq!(aes_cbc(false, &[7u8; 32], &[9u8; 16], &aes_cbc(true, &[7u8; 32], &[9u8; 16], b"deskstats").unwrap()).unwrap(), b"deskstats");
+        assert!(aes_cbc(false, &[7u8; 32], &[9u8; 16], &[1u8; 15]).is_none());
     }
 
     #[test]

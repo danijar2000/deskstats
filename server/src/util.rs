@@ -1,4 +1,3 @@
-use crate::ffi::{localtime_r, Tm};
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -21,6 +20,7 @@ pub fn json_escape(s: &str) -> String {
     out
 }
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn truncate(s: &str, limit: usize) -> String {
     if s.chars().count() <= limit {
         return s.to_string();
@@ -30,32 +30,50 @@ pub fn truncate(s: &str, limit: usize) -> String {
     cut
 }
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn normalize(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
 }
 
 pub fn log(message: &str) {
     let secs = (now_ms() / 1000) as i64;
-    let mut tm: Tm = unsafe { std::mem::zeroed() };
-    let stamp = if unsafe { localtime_r(&secs, &mut tm) }.is_null() {
-        secs.to_string()
-    } else {
-        format!(
-            "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
-            tm.tm_year + 1900,
-            tm.tm_mon + 1,
-            tm.tm_mday,
-            tm.tm_hour,
-            tm.tm_min,
-            tm.tm_sec
-        )
+    let stamp = match crate::sys::local_time(secs) {
+        Some([year, month, day, hour, minute, second]) => format!("{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}"),
+        None => secs.to_string(),
     };
-    let _ = writeln!(std::io::stderr().lock(), "{stamp} {message}");
+    crate::sys::log_line(&format!("{stamp} {message}"));
+}
+
+/// A command that runs without a window of its own.
+fn command(program: &str) -> Command {
+    #[allow(unused_mut)]
+    let mut command = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    command
 }
 
 pub fn run(program: &str, args: &[&str], timeout: Duration) -> Option<(bool, String)> {
-    let mut child = Command::new(program).args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
-    let stdout = child.stdout.take()?;
+    run_with_input(program, args, None, timeout)
+}
+
+/// Runs a program, optionally with [input] on its standard input; whether it ended well and what it printed.
+/// None when it cannot start or does not end in time, in which case it is killed.
+pub fn run_with_input(program: &str, args: &[&str], input: Option<&str>, timeout: Duration) -> Option<(bool, String)> {
+    let stdin = if input.is_some() { Stdio::piped() } else { Stdio::null() };
+    let mut child = command(program).args(args).stdin(stdin).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
+    if let (Some(text), Some(mut pipe)) = (input, child.stdin.take()) {
+        // Short enough to fit the pipe; dropping the pipe ends the input.
+        let _ = pipe.write_all(text.as_bytes());
+    }
+    let Some(stdout) = child.stdout.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return None;
+    };
     let (send, receive) = std::sync::mpsc::channel();
     let reader = std::thread::Builder::new().name("output".into()).stack_size(64 * 1024).spawn(move || {
         let mut out = Vec::new();
@@ -94,14 +112,28 @@ mod tests {
         assert_eq!(truncate("äöü", 3), "äöü");
     }
 
+    #[cfg(unix)]
     #[test]
     fn run_returns_output_and_kills_what_hangs() {
+        assert_eq!(run_with_input("/bin/cat", &[], Some("in\n"), Duration::from_secs(5)), Some((true, "in\n".into())));
         assert_eq!(run("/bin/echo", &["hi"], Duration::from_secs(5)), Some((true, "hi\n".into())));
         assert_eq!(run("/usr/bin/false", &[], Duration::from_secs(5)), Some((false, String::new())));
         let started = Instant::now();
         assert_eq!(run("/bin/sleep", &["30"], Duration::from_millis(200)), None);
         assert!(started.elapsed() < Duration::from_secs(5));
         assert_eq!(run("/nonexistent", &[], Duration::from_secs(1)), None);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn run_returns_output_and_kills_what_hangs() {
+        assert_eq!(run("cmd.exe", &["/C", "echo hi"], Duration::from_secs(10)), Some((true, "hi\r\n".into())));
+        assert_eq!(run("cmd.exe", &["/C", "exit 3"], Duration::from_secs(10)), Some((false, String::new())));
+        assert_eq!(run_with_input("findstr.exe", &["x"], Some("axb\r\n"), Duration::from_secs(10)), Some((true, "axb\r\n".into())));
+        let started = Instant::now();
+        assert_eq!(run("ping.exe", &["-n", "30", "127.0.0.1"], Duration::from_millis(300)), None);
+        assert!(started.elapsed() < Duration::from_secs(5));
+        assert_eq!(run("no-such-program-here.exe", &[], Duration::from_secs(1)), None);
     }
 
     #[test]

@@ -19,6 +19,7 @@
     <string name="alerts_start">请在 Mac 上启动 deskstats，并用 USB 连接手机。</string>
     <string name="alerts_denied">macOS 不允许服务器读取通知：请授予它“完全磁盘访问权限”。</string>
     <string name="alerts_server_off">服务器已关闭通知。</string>
+    <string name="alerts_unsupported">暂时无法读取这台电脑的通知（仅支持 Mac）。</string>
     <string name="alerts_off">已在设置中关闭 Mac 通知。</string>
     <string name="alerts_none">没有新通知。</string>
     <string name="battery_mouse">鼠标</string>

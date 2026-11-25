@@ -67,6 +67,27 @@ Everything else works without them. Deskstats notices the permissions by itself 
 minute. After an update macOS asks for them again; if a switch is already on but nothing
 arrives, remove Deskstats from the list (−) and add `~/Applications/Deskstats.app` again.
 
+### Linux and Windows
+
+The server also runs on Linux (x86-64 and ARM64, any distribution with systemd) and on Windows 10 or later (64-bit). The phone app is the same.
+
+Linux, in a terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash
+```
+
+Windows, in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1 | iex
+```
+
+- On Linux the server lives in `~/.local/bin/deskstats` and starts at login as a systemd user service; on Windows it lives in `%LOCALAPPDATA%\deskstats` and starts at sign-in, with its log in `%APPDATA%\deskstats\log.txt`.
+- For the USB cable install adb: `sudo apt install android-tools-adb` (or your distribution's package) or `winget install Google.PlatformTools`.
+- For Wi‑Fi let TCP 8787 and UDP 8788 through the firewall. To let a phone in over Wi‑Fi, Linux needs `zenity` or `kdialog` to show the question.
+- Not there yet on these systems: notifications, the battery of mouse and keyboard on Windows, GPU load on Windows and on Linux other than AMD, and the phone going dark with the display.
+
 ## Use
 
 - **Load cards** (CPU, GPU, RAM, Network) open the Mac's applications sorted by that load. CPU
@@ -130,6 +151,9 @@ Nothing leaves the Mac except the coordinates of the chosen city, sent to open-m
 (cd server && cargo test && ./install.sh)
 (cd android && ./gradlew :app:assembleRelease)
 ```
+
+On Linux the server is installed with `./install-linux.sh`, on Windows with
+`powershell -ExecutionPolicy Bypass -File install.ps1` (both in `server`, both build it first).
 
 The server needs Rust; the app needs JDK 17+ and the Android SDK with platform 34.
 [GitHub Actions](.github/workflows/build.yml) builds both on every push and publishes a release

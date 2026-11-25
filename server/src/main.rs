@@ -1,21 +1,24 @@
+// On Windows the server runs without a console window.
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 mod adb;
-mod alerts;
 mod crypto;
-mod ffi;
 mod http;
 mod lan;
+mod load;
 mod pair;
 mod power;
 mod procs;
-mod sampler;
 mod settings;
+#[cfg_attr(target_os = "macos", path = "sys/mac/mod.rs")]
+#[cfg_attr(target_os = "linux", path = "sys/linux/mod.rs")]
+#[cfg_attr(windows, path = "sys/windows/mod.rs")]
+mod sys;
 mod util;
 mod weather;
 
 use std::fs;
-use std::io::Read;
 use std::net::TcpListener;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -25,9 +28,7 @@ const PORT: u16 = 8787;
 
 type Counters = (Vec<(u64, u64)>, std::collections::HashMap<String, (u64, u64)>, Instant);
 
-fn data_dir() -> String {
-    format!("{}/Library/Application Support/deskstats", std::env::var("HOME").unwrap_or_default())
-}
+use sys::data_dir;
 
 fn load_token() -> std::io::Result<String> {
     let dir = data_dir();
@@ -39,11 +40,9 @@ fn load_token() -> std::io::Result<String> {
         }
     }
     fs::create_dir_all(&dir)?;
-    fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;
-    let mut random = [0u8; 24];
-    fs::File::open("/dev/urandom")?.read_exact(&mut random)?;
-    let token: String = random.iter().map(|b| format!("{b:02x}")).collect();
-    let mut file = fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&path)?;
+    sys::private_dir(&dir)?;
+    let token = crypto::random_hex(24);
+    let mut file = sys::private_file(&path)?;
     std::io::Write::write_all(&mut file, token.as_bytes())?;
     log("token: created a new one; the phone gets it the next time it is connected over USB");
     Ok(token)
@@ -90,21 +89,15 @@ fn head_json(l: &Load) -> String {
     };
     let ram_pct = if l.ram_total > 0 { l.ram_used as f64 * 100.0 / l.ram_total as f64 } else { 0.0 };
     format!(
-        "{{\"ts\":{},\"interval_ms\":{},\"mac\":\"{}\",\"name\":\"{}\",\"cpu\":{{\"name\":\"{}\",\"pct\":{:.1}}},\"gpu\":{gpu},\"ram\":{{\"used\":{},\"total\":{},\"pct\":{ram_pct:.1}}},\"net\":{{\"down_bps\":{:.0},\"up_bps\":{:.0}}},\"batteries\":{},",
-        l.ts, l.interval_ms, l.mac, l.name, l.cpu_name, l.cpu_pct, l.ram_used, l.ram_total, l.down_bps, l.up_bps, l.batteries,
+        "{{\"ts\":{},\"interval_ms\":{},\"mac\":\"{}\",\"os\":\"{}\",\"name\":\"{}\",\"cpu\":{{\"name\":\"{}\",\"pct\":{:.1}}},\"gpu\":{gpu},\"ram\":{{\"used\":{},\"total\":{},\"pct\":{ram_pct:.1}}},\"net\":{{\"down_bps\":{:.0},\"up_bps\":{:.0}}},\"batteries\":{},",
+        l.ts, l.interval_ms, l.mac, sys::OS, l.name, l.cpu_name, l.cpu_pct, l.ram_used, l.ram_total, l.down_bps, l.up_bps, l.batteries,
     )
 }
 
-fn alerts_json(list: Option<&[alerts::Item]>, count: usize) -> String {
-    match list {
-        Some(items) => format!("\"alerts\":[{}],", items.iter().take(count).map(alerts::Item::json).collect::<Vec<_>>().join(",")),
-        None => String::from("\"alerts\":null,"),
-    }
-}
-
 fn main() {
+    #[cfg(target_os = "macos")]
     if std::env::args().nth(1).as_deref() == Some("--ax-check") {
-        println!("{}", if alerts::accessibility_granted() { "yes" } else { "no" });
+        println!("{}", if sys::alerts::accessibility_granted() { "yes" } else { "no" });
         return;
     }
     let token = match load_token() {
@@ -126,8 +119,8 @@ fn main() {
 
     power::start();
     let weather = Arc::new(weather::Weather::new(Duration::from_secs(settings.weather_min.load(Ordering::Relaxed) * 60)));
-    let computer = sampler::computer_name();
-    let about = lan::about_json(&crypto::id_of(&token), &computer, &sampler::model_name(), PORT);
+    let computer = sys::computer_name();
+    let about = lan::about_json(&crypto::id_of(&token), &computer, &sys::model_name(), PORT);
     let mut shared = http::Shared::new(token.clone(), PORT, weather.clone(), settings.clone());
     shared.about = about.clone();
     let shared = Arc::new(shared);
@@ -151,20 +144,18 @@ fn main() {
         None => log("adb: not found, the phone has to be connected by hand"),
     }
 
-    let machine = sampler::Host::new();
-    let cpu_name = json_escape(&sampler::sysctl_string("machdep.cpu.brand_string"));
+    let machine = sys::Host::new();
+    let cpu_name = json_escape(&machine.cpu_name());
     let name = json_escape(&computer);
-    let ram_total = sampler::sysctl_u64("hw.memsize");
-    let page_size = sampler::sysctl_u64("hw.pagesize").max(4096);
-    let gpu = sampler::Gpu::new();
-    let mut batteries = sampler::Batteries::new();
-    let mut database = alerts::Database::new();
-    let mut screen = alerts::Screen::new();
+    let ram_total = machine.ram_total();
+    let gpu = sys::Gpu::new();
+    let mut batteries = sys::Batteries::new();
+    let mut notifications = sys::Notifications::new();
 
     let mut prev: Option<Counters> = None;
     loop {
         if power::stopping() {
-            log("stopping: telling the phone the Mac goes away");
+            log("stopping: telling the phone the computer goes away");
             power::wait_for_poll(now_ms());
             std::process::exit(0);
         }
@@ -182,41 +173,31 @@ fn main() {
             continue;
         }
         let Some((prev_cpu, prev_net, prev_at)) = prev.take() else {
-            prev = Some((machine.cpu_ticks(), sampler::net_counters(), Instant::now()));
+            prev = Some((machine.cpu_ticks(), sys::net_counters(), Instant::now()));
             nap(Duration::from_millis(250));
             continue;
         };
 
         let cpu = machine.cpu_ticks();
-        let net = sampler::net_counters();
+        let net = sys::net_counters();
         let at = Instant::now();
         let seconds = at.duration_since(prev_at).as_secs_f64().max(0.001);
-        let (rx, tx) = sampler::net_delta(&prev_net, &net);
+        let (rx, tx) = load::net_delta(&prev_net, &net);
         let head = head_json(&Load {
             ts: now_ms(),
             interval_ms: interval.as_millis(),
             mac: power::state(),
             name: &name,
             cpu_name: &cpu_name,
-            cpu_pct: sampler::cpu_percent(&prev_cpu, &cpu),
+            cpu_pct: load::cpu_percent(&prev_cpu, &cpu),
             gpu: gpu.sample(),
-            ram_used: machine.ram_used(page_size),
+            ram_used: machine.ram_used(),
             ram_total,
             down_bps: rx as f64 / seconds,
             up_bps: tx as f64 / seconds,
             batteries: batteries.refresh(),
         });
-        let (short, full) = if settings.alerts.load(Ordering::Relaxed) {
-            let on_screen = screen.refresh();
-            let list = match database.refresh() {
-                Some(rows) => Some(alerts::merge(rows, on_screen, now_ms())),
-                None if !on_screen.is_empty() => Some(alerts::merge(&[], on_screen, now_ms())),
-                None => None,
-            };
-            (alerts_json(list.as_deref(), alerts::SHORT), alerts_json(list.as_deref(), alerts::FULL))
-        } else {
-            (String::new(), String::new())
-        };
+        let (short, full) = if settings.alerts.load(Ordering::Relaxed) { notifications.json() } else { (String::new(), String::new()) };
         *shared.sample.lock().unwrap_or_else(|e| e.into_inner()) = Some(http::Sample { head, alerts: short, alerts_full: full });
         prev = Some((cpu, net, at));
         nap(interval.saturating_sub(at.elapsed()));
@@ -243,17 +224,19 @@ mod tests {
             up_bps: 0.0,
             batteries: "[]",
         };
-        let item = alerts::Item { id: 7, ts: 5, app: "Mail".into(), title: "a \"b\"".into(), subtitle: String::new(), body: "c\nd".into() };
-        let sample = http::Sample { head: head_json(&load), alerts: alerts_json(Some(std::slice::from_ref(&item)), 6), alerts_full: alerts_json(None, 30) };
+        let alerts = "\"alerts\":[{\"id\":7}],";
+        let sample = http::Sample { head: head_json(&load), alerts: alerts.into(), alerts_full: "\"alerts\":null,".into() };
         assert_eq!(
             sample.json(false, "null"),
-            "{\"ts\":1700000000000,\"interval_ms\":1000,\"mac\":\"awake\",\"name\":\"Studio\",\"cpu\":{\"name\":\"Apple M4\",\"pct\":12.3},\"gpu\":{\"pct\":9,\"mem_used\":1048576},\
-             \"ram\":{\"used\":8,\"total\":16,\"pct\":50.0},\"net\":{\"down_bps\":1500,\"up_bps\":0},\"batteries\":[],\
-             \"alerts\":[{\"id\":7,\"ts\":5,\"app\":\"Mail\",\"title\":\"a \\\"b\\\"\",\"subtitle\":\"\",\"body\":\"c d\"}],\"weather\":null}"
+            format!(
+                "{{\"ts\":1700000000000,\"interval_ms\":1000,\"mac\":\"awake\",\"os\":\"{}\",\"name\":\"Studio\",\"cpu\":{{\"name\":\"Apple M4\",\"pct\":12.3}},\"gpu\":{{\"pct\":9,\"mem_used\":1048576}},\
+                 \"ram\":{{\"used\":8,\"total\":16,\"pct\":50.0}},\"net\":{{\"down_bps\":1500,\"up_bps\":0}},\"batteries\":[],\
+                 \"alerts\":[{{\"id\":7}}],\"weather\":null}}",
+                sys::OS
+            )
         );
         assert!(sample.json(true, "{}").ends_with("\"batteries\":[],\"alerts\":null,\"weather\":{}}"));
         let none = Load { gpu: None, ram_total: 0, ..load };
         assert!(head_json(&none).contains("\"gpu\":null,\"ram\":{\"used\":8,\"total\":0,\"pct\":0.0}"));
-        assert_eq!(alerts_json(Some(&[item.clone(), item]), 1).matches("\"id\"").count(), 1);
     }
 }

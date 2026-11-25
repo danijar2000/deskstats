@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Installs deskstats from the latest GitHub release: the server on this Mac and, when a phone
-# is connected over USB, the app on the phone.
+# Installs deskstats from the latest GitHub release: the server on this Mac or Linux computer and,
+# when a phone is connected over USB, the app on the phone. On Windows, use setup.ps1.
 #
 #   curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash
 #   curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash -s -- --uninstall
@@ -22,13 +22,28 @@ done
 say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 fail() { printf 'setup.sh: %s\n' "$*" >&2; exit 1; }
 
-[ "$(uname -s)" = Darwin ] || fail "the server runs on macOS only"
+case "$(uname -s)" in
+  Darwin)
+    archive="deskstats-server-macos.tar.gz"
+    adb_hint="brew install android-platform-tools"
+    ;;
+  Linux)
+    case "$(uname -m)" in
+      x86_64 | amd64) arch=x86_64 ;;
+      aarch64 | arm64) arch=aarch64 ;;
+      *) fail "no build for $(uname -m); build from source: https://github.com/danijar2000/deskstats#build-from-source" ;;
+    esac
+    archive="deskstats-server-linux-$arch.tar.gz"
+    adb_hint="sudo apt install android-tools-adb   (or your distribution's android-tools package)"
+    ;;
+  *) fail "this script is for macOS and Linux; on Windows use setup.ps1" ;;
+esac
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 say "Downloading the server"
-curl -fsSL "$base/deskstats-server-macos.tar.gz" -o "$work/server.tar.gz" || fail "cannot download $base/deskstats-server-macos.tar.gz"
+curl -fsSL "$base/$archive" -o "$work/server.tar.gz" || fail "cannot download $base/$archive"
 tar -xzf "$work/server.tar.gz" -C "$work"
 if [ "$uninstall" = 1 ]; then
   "$work/deskstats-server/install.sh" --uninstall
@@ -38,14 +53,14 @@ fi
 
 [ "$phone" = 1 ] || exit 0
 adb="$(command -v adb || true)"
-for candidate in "$HOME/Library/Android/sdk/platform-tools/adb" /opt/homebrew/bin/adb /usr/local/bin/adb; do
+for candidate in "$HOME/Library/Android/sdk/platform-tools/adb" "$HOME/Android/Sdk/platform-tools/adb" /opt/homebrew/bin/adb /usr/local/bin/adb /usr/bin/adb; do
   [ -n "$adb" ] && break
   [ -x "$candidate" ] && adb="$candidate"
 done
 if [ -z "$adb" ]; then
   echo
   echo "adb not found, so the phone app is not installed. Install adb and run setup.sh again:"
-  echo "  brew install android-platform-tools"
+  echo "  $adb_hint"
   exit 0
 fi
 if ! "$adb" get-state >/dev/null 2>&1; then
@@ -70,4 +85,4 @@ if ! out="$("$adb" install -r "$work/deskstats.apk" 2>&1)"; then
   exit 1
 fi
 echo
-echo "Done. In a few seconds the Mac opens the panel on the phone and pairs it."
+echo "Done. In a few seconds the computer opens the panel on the phone and pairs it."

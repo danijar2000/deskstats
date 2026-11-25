@@ -99,7 +99,7 @@ impl Shared {
         let mut cache = self.addresses.lock().unwrap_or_else(|e| e.into_inner());
         let stale = cache.0.is_none_or(|t| t.elapsed() >= Duration::from_secs(1));
         if !cache.1.contains(&to) && stale {
-            *cache = (Some(Instant::now()), crate::lan::interfaces().into_iter().map(|(ip, _)| ip).collect());
+            *cache = (Some(Instant::now()), crate::sys::interfaces().into_iter().map(|(ip, _)| ip).collect());
         }
         cache.1.contains(&to)
     }

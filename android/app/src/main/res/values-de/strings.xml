@@ -19,6 +19,7 @@
     <string name="alerts_start">Starte deskstats auf dem Mac und verbinde das Telefon per USB.</string>
     <string name="alerts_denied">macOS lässt den Server keine Mitteilungen lesen: Gib ihm „Festplattenvollzugriff“.</string>
     <string name="alerts_server_off">Mitteilungen sind auf dem Server aus.</string>
+    <string name="alerts_unsupported">Auf diesem Computer werden Mitteilungen noch nicht gelesen (nur auf einem Mac).</string>
     <string name="alerts_off">Mac‑Mitteilungen sind in den Einstellungen aus.</string>
     <string name="alerts_none">Keine neuen Mitteilungen.</string>
     <string name="battery_mouse">Maus</string>

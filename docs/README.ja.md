@@ -65,6 +65,27 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 macOS が再び許可を求めます。スイッチがすでにオンなのに何も届かない場合は、リストから Deskstats を削除（−）し、
 `~/Applications/Deskstats.app` を追加し直してください。
 
+### Linux と Windows
+
+サーバーは Linux（x86-64 と ARM64、systemd のあるディストリビューション）と Windows 10 以降（64 ビット）でも動きます。スマートフォンのアプリは同じものです。
+
+Linux（ターミナルで）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash
+```
+
+Windows（PowerShell で）：
+
+```powershell
+irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1 | iex
+```
+
+- Linux ではサーバーは `~/.local/bin/deskstats` に置かれ、ログイン時に systemd のユーザーサービスとして起動します。Windows では `%LOCALAPPDATA%\deskstats` に置かれ、サインイン時に起動し、ログは `%APPDATA%\deskstats\log.txt` に書かれます。
+- USB ケーブルで使うには adb をインストールします：`sudo apt install android-tools-adb`（またはお使いのディストリビューションのパッケージ）、または `winget install Google.PlatformTools`。
+- Wi‑Fi で使うには、ファイアウォールで TCP 8787 と UDP 8788 を許可します。Wi‑Fi でスマートフォンを許可するには、Linux では確認ウインドウを出すために `zenity` か `kdialog` が必要です。
+- これらのシステムでは未対応：通知、Windows でのマウスとキーボードのバッテリー、Windows と AMD 以外の Linux での GPU 負荷、ディスプレイに合わせたスマートフォンの消灯。
+
 ## 使い方
 
 - **負荷カード**（CPU、GPU、RAM、ネットワーク）をタップすると、その負荷順に並んだ Mac のアプリが開きます。

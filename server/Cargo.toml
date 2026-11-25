@@ -6,6 +6,33 @@ rust-version = "1.82"
 
 [dependencies]
 
+# macOS has all of this in the system (CommonCrypto, Security); the other systems get it from these crates.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+getrandom = "0.2"
+hmac = "0.12"
+p256 = { version = "0.13", default-features = false, features = ["ecdh"] }
+sha2 = "0.10"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Devices_DeviceAndDriverInstallation",
+    "Win32_Foundation",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_Networking_WinSock",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 [profile.release]
 opt-level = "s"
 lto = true

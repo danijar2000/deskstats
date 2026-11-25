@@ -71,6 +71,27 @@ halben Minute von selbst. Nach einem Update fragt macOS erneut danach; ist ein S
 an, kommt aber nichts an, entferne Deskstats aus der Liste (−) und füge
 `~/Applications/Deskstats.app` erneut hinzu.
 
+### Linux und Windows
+
+Der Server läuft auch unter Linux (x86-64 und ARM64, jede Distribution mit systemd) und unter Windows 10 oder neuer (64 Bit). Die Telefon-App ist dieselbe.
+
+Linux, im Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash
+```
+
+Windows, in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1 | iex
+```
+
+- Unter Linux liegt der Server in `~/.local/bin/deskstats` und startet bei der Anmeldung als systemd-Benutzerdienst; unter Windows liegt er in `%LOCALAPPDATA%\deskstats`, startet bei der Anmeldung und schreibt sein Protokoll nach `%APPDATA%\deskstats\log.txt`.
+- Für das USB-Kabel adb installieren: `sudo apt install android-tools-adb` (oder das Paket deiner Distribution) bzw. `winget install Google.PlatformTools`.
+- Für WLAN TCP 8787 und UDP 8788 in der Firewall freigeben. Um ein Telefon per WLAN hereinzulassen, braucht Linux `zenity` oder `kdialog` für die Rückfrage.
+- Auf diesen Systemen noch nicht vorhanden: Mitteilungen, der Akkustand von Maus und Tastatur unter Windows, die GPU-Last unter Windows und unter Linux außer bei AMD sowie das Abdunkeln des Telefons mit dem Bildschirm.
+
 ## Bedienung
 
 - **Lastkarten** (CPU, GPU, RAM, Netz) öffnen die Apps des Macs, sortiert nach dieser Last. CPU

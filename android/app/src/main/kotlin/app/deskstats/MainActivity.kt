@@ -57,6 +57,8 @@ class Stats(
     val batteries: List<Battery>,
     val alerts: List<Alert>?,
     val alertsDenied: Boolean,
+    /** False for a computer whose system the server cannot read notifications from (Linux, Windows). */
+    val alertsSupported: Boolean,
 ) {
     companion object {
         private fun JSONObject.optFloat(name: String): Float? =
@@ -121,6 +123,8 @@ class Stats(
                 batteries = batteries,
                 alerts = alerts,
                 alertsDenied = o.has("alerts") && o.isNull("alerts"),
+                // Servers before the other systems were supported are Macs and do not say what they run on.
+                alertsSupported = o.optString("os", "macos") == "macos",
             )
         }
     }
