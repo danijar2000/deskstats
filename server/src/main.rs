@@ -102,7 +102,11 @@ fn main() {
     if let [flag, text] = arguments.as_slice() {
         if flag == "--qr" || flag == "--qr-bits" {
             match qr::Qr::encode(text) {
-                Some(code) => print!("{}", if flag == "--qr" { code.terminal() } else { code.bits() }),
+                Some(code) => {
+                    // Whoever asked may have gone already; that is not worth a crash.
+                    let text = if flag == "--qr" { code.terminal() } else { code.bits() };
+                    let _ = std::io::Write::write_all(&mut std::io::stdout().lock(), text.as_bytes());
+                }
                 None => std::process::exit(2),
             }
             return;

@@ -29,7 +29,18 @@ function Show-Qr {
     $link = "$base/deskstats.apk"
     $server = Join-Path $env:LOCALAPPDATA 'deskstats\deskstats.exe'
     $rows = @()
-    if (Test-Path $server) { $rows = @(& $server --qr-bits $link | Where-Object { $_ -match '^[01]+$' }) }
+    if (Test-Path $server) {
+        # The server has no console, so PowerShell would not wait for what it prints: it goes through a file.
+        $file = Join-Path ([IO.Path]::GetTempPath()) ("deskstats-qr-" + [Guid]::NewGuid().ToString('N') + '.txt')
+        try {
+            Start-Process -FilePath $server -ArgumentList '--qr-bits', $link -Wait -NoNewWindow -RedirectStandardOutput $file
+            $rows = @(Get-Content $file | Where-Object { $_ -match '^[01]+$' })
+        } catch {
+            $rows = @()
+        } finally {
+            Remove-Item -Force $file -ErrorAction SilentlyContinue
+        }
+    }
     if ($rows.Count -gt 0) {
         $blank = '0' * $rows[0].Length
         foreach ($row in @($blank, $blank) + $rows + @($blank, $blank)) {
