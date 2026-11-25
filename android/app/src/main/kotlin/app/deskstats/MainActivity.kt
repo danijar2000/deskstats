@@ -181,7 +181,58 @@ class MainActivity : Activity(), Page.Host {
     @Volatile private var usbPort = Settings.DEFAULT_PORT
     @Volatile private var paired = Servers(emptyList(), null)
     override val servers: Servers get() = paired
-    private var beacon: Beacon? = null
+    @Volatile private var beacon: Beacon? = null
+    private val heard = LinkedHashMap<String, Nearby>()
+    @Volatile private var scanning = false
+
+    override val nearby: List<Nearby>
+        get() {
+            val since = System.currentTimeMillis() - NEARBY_MS
+            heard.values.removeAll { it.seen < since }
+            return heard.values.sortedBy { it.name.lowercase(Locale.ROOT) }
+        }
+
+    private fun hear(mac: Nearby) {
+        root.post {
+            val old = heard.put(mac.id, mac)
+            if (old == null || old.host != mac.host || old.name != mac.name) (pages.lastOrNull() as? ServersPage)?.resumed()
+        }
+    }
+
+    @Volatile private var askedAt = 0L
+
+    override fun discover() {
+        askedAt = System.currentTimeMillis()
+        beacon?.ask()
+    }
+
+    /** From the poller: the Mac shown is out of reach, so ask the Macs where they are now, every few seconds at most. */
+    private fun discoverNowAndThen() {
+        if (System.currentTimeMillis() - askedAt >= ASK_MS) discover()
+    }
+
+    override fun scan() {
+        if (scanning) return
+        scanning = true
+        Thread({
+            try {
+                Door.scan(Settings.DEFAULT_PORT, ::hear)
+            } finally {
+                scanning = false
+            }
+        }, "scan").start()
+    }
+
+    override fun pairedOverWifi(mac: Nearby, token: String) {
+        // The Mac turned its Wi‑Fi on when it let the phone in; the phone's own switch must not turn it off again.
+        if (!options.lan) options = options.copy(lan = true)
+        changeServers { s ->
+            val added = s.withToken(token)
+            val server = added.byId(mac.id) ?: return@changeServers added
+            added.replace(server.at(mac.host, mac.port).let { if (mac.name.isEmpty()) it else it.named(mac.name) }).select(mac.id)
+        }
+        home()
+    }
     private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
 
     @Volatile private var poller: Thread? = null
@@ -477,7 +528,7 @@ class MainActivity : Activity(), Page.Host {
             }
         } catch (e: Exception) {
         }
-        beacon = Beacon({ paired.list }) { server, host, port ->
+        beacon = Beacon({ paired.list }, ::hear) { server, host, port ->
             if (host == server.host && port == server.port) return@Beacon
             Servers.update(prefs) { s -> s.byId(server.id)?.let { s.replace(it.at(host, port)) } ?: s }
             root.post { applyServers(Servers.load(prefs)) }
@@ -731,6 +782,7 @@ class MainActivity : Activity(), Page.Host {
                     continue
                 }
                 if (macAsleep) showAsleep(false)
+                if (answer == null) discoverNowAndThen()
                 when {
                     answer == null -> show(Link.OFFLINE, null)
                     answer.code == 200 -> {
@@ -804,5 +856,7 @@ class MainActivity : Activity(), Page.Host {
         const val SHIFT_STEP = 5
         const val PROCS_MS = 2500L
         const val DIM = 0.02f
+        const val NEARBY_MS = 25_000L
+        const val ASK_MS = 5_000L
     }
 }

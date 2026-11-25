@@ -34,7 +34,7 @@ mémoire et réseau avec des graphiques en direct.
 
 - **Un Mac** sous macOS 11 ou ultérieur (Apple silicon ou Intel).
 - **Un téléphone Android** sous Android 2.3 ou ultérieur. La liaison USB nécessite Android 5.0 ;
-  les téléphones plus anciens n'utilisent que le Wi‑Fi, mais ont eux aussi besoin du câble une fois.
+  les téléphones plus anciens n'utilisent que le Wi‑Fi.
 - **adb** sur le Mac pour la liaison USB : `brew install android-platform-tools`.
 - **Le débogage USB** sur le téléphone : Paramètres → À propos du téléphone, touchez sept fois
   « Numéro de build », puis Paramètres → Options pour les développeurs → Débogage USB. Autorisez
@@ -83,9 +83,11 @@ que rien n'arrive, retirez Deskstats de la liste (−) puis ajoutez à nouveau
 - **L'engrenage** ouvre les réglages : langue (8 langues), thème (sombre, clair, néon),
   orientation (paysage, portrait, auto), blocs de l'écran principal, connexion Wi‑Fi,
   notifications du Mac, intervalle d'actualisation et actualisation de la météo.
-- **Plusieurs Mac** : branchez le téléphone une fois par câble à chaque Mac, il les retient tous.
-  Balayez l'écran principal vers la gauche ou la droite pour changer ; les points en haut indiquent
-  le Mac affiché. La liste (× pour oublier un Mac) est dans les réglages, rubrique Mac.
+- **Plusieurs Mac** : les Mac qui exécutent deskstats sur le même Wi‑Fi apparaissent dans les réglages,
+  rubrique Mac, comme les appareils dans LocalSend. Touchez-en un : le téléphone et le Mac affichent le
+  même code à six chiffres, et le Mac demande s'il doit laisser entrer le téléphone. Brancher une fois
+  le téléphone à un Mac par câble l'ajoute aussi. Balayez l'écran principal vers la gauche ou la droite
+  pour changer ; les points en haut indiquent le Mac affiché. × oublie un Mac.
 - **Retour** ferme une page ; une page laissée sans interaction se ferme seule au bout de
   quelques minutes.
 
@@ -125,10 +127,12 @@ qu'à la main.
 
 ## Sécurité
 
-Le téléphone et le Mac chiffrent tout ce qu'ils s'envoient avec une clé que le téléphone reçoit
-une seule fois par le câble ; la clé elle-même ne passe jamais par le réseau. Les requêtes sans
-elle sont refusées avant toute exécution. Rien ne quitte le Mac, hormis les coordonnées de la
-ville choisie, envoyées à open-meteo.com pour la météo.
+Le téléphone et le Mac chiffrent tout ce qu'ils s'envoient avec une clé que le téléphone reçoit par
+le câble, ou par le Wi‑Fi quand l'utilisateur du Mac l'autorise : ils conviennent alors d'un secret par
+ECDH (P-256), tous deux affichent un code à six chiffres qui en est tiré, et la clé voyage chiffrée avec
+ce secret. Les requêtes sans la clé sont refusées avant toute exécution. Chaque Mac annonce sur le réseau
+local son nom, son modèle et son adresse pour que les téléphones puissent le lister ; rien d'autre n'est
+ouvert. Rien ne quitte le Mac, hormis les coordonnées de la ville choisie, envoyées à open-meteo.com pour la météo.
 
 ## Compiler depuis les sources
 

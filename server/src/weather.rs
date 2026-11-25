@@ -145,8 +145,14 @@ pub fn run(weather: Arc<Weather>) {
                 }
             }
         }
-        let untried = weather.places.lock().unwrap_or_else(|e| e.into_inner()).iter().any(|p| p.tried.is_none());
-        if !untried {
+        let (none, untried) = {
+            let places = weather.places.lock().unwrap_or_else(|e| e.into_inner());
+            (places.is_empty(), places.iter().any(|p| p.tried.is_none()))
+        };
+        if none {
+            // Nobody has asked for weather lately: sleep until a phone asks for a city.
+            std::thread::park();
+        } else if !untried {
             // Short parks: their timer stands still while the Mac sleeps.
             std::thread::park_timeout(Duration::from_millis(retry.clamp(1000, 60_000)));
         }

@@ -34,7 +34,7 @@ memoria y red con gráficos en directo.
 
 - **Un Mac** con macOS 11 o posterior (Apple silicon o Intel).
 - **Un teléfono Android** con Android 2.3 o posterior. La conexión USB requiere Android 5.0; los
-  teléfonos más antiguos solo usan Wi‑Fi, pero también necesitan el cable una vez.
+  teléfonos más antiguos solo usan Wi‑Fi.
 - **adb** en el Mac para la conexión USB: `brew install android-platform-tools`.
 - **Depuración por USB** en el teléfono: Ajustes → Información del teléfono, toca "Número de
   compilación" siete veces y luego Ajustes → Opciones para desarrolladores → Depuración por USB.
@@ -80,9 +80,11 @@ nada, quita Deskstats de la lista (−) y vuelve a añadir `~/Applications/Desks
 - **El engranaje** abre los ajustes: idioma (8 idiomas), tema (oscuro, claro, neón),
   orientación (horizontal, vertical, auto), los bloques de la pantalla principal, conexión por
   Wi‑Fi, notificaciones del Mac, intervalo de actualización y actualización del tiempo.
-- **Varios Mac**: conecta el teléfono por cable a cada Mac una vez y los recordará todos. Desliza
-  la pantalla principal a la izquierda o a la derecha para cambiar; los puntos de arriba muestran
-  qué Mac se ve. La lista (× para olvidar un Mac) está en los ajustes, en Macs.
+- **Varios Mac**: los Mac con deskstats en la misma Wi‑Fi aparecen en los ajustes, en Macs, como los
+  dispositivos en LocalSend. Toca uno: el teléfono y el Mac muestran el mismo código de seis cifras y
+  el Mac pregunta si deja entrar al teléfono. Conectar el teléfono a un Mac por cable una vez también
+  lo añade. Desliza la pantalla principal a la izquierda o a la derecha para cambiar; los puntos de
+  arriba muestran qué Mac se ve. × olvida un Mac.
 - **Atrás** cierra una página; una página desatendida se cierra sola al cabo de unos minutos.
 
 Para evitar el quemado de pantalla, la imagen se desplaza unos píxeles cada dos minutos y la
@@ -120,10 +122,12 @@ allí a mano.
 
 ## Seguridad
 
-El teléfono y el Mac cifran todo lo que se envían con una clave que el teléfono recibe una sola
-vez por cable; la clave nunca viaja por la red. Las peticiones sin ella se rechazan antes de
-ejecutar nada. Del Mac no sale nada salvo las coordenadas de la ciudad elegida, que se envían a
-open-meteo.com para obtener el tiempo.
+El teléfono y el Mac cifran todo lo que se envían con una clave que el teléfono recibe por cable o
+por Wi‑Fi cuando el usuario del Mac lo permite: entonces acuerdan un secreto por ECDH (P-256), ambos
+muestran un código de seis cifras derivado de él y la clave viaja cifrada con ese secreto. Las
+peticiones sin la clave se rechazan antes de ejecutar nada. Cada Mac anuncia en la red local su
+nombre, modelo y dirección para que los teléfonos puedan listarlo; nada más queda abierto. Del Mac no
+sale nada salvo las coordenadas de la ciudad elegida, que se envían a open-meteo.com para obtener el tiempo.
 
 ## Compilar desde el código fuente
 

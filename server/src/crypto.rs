@@ -24,7 +24,25 @@ extern "C" {
         data_out_moved: *mut usize,
     ) -> i32;
     fn CCHmac(alg: u32, key: *const c_void, key_length: usize, data: *const c_void, data_length: usize, mac_out: *mut c_void);
+    fn CC_SHA256(data: *const c_void, len: u32, md: *mut u8) -> *mut u8;
     fn arc4random_buf(buf: *mut c_void, nbytes: usize);
+}
+
+pub fn sha256(data: &[u8]) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    unsafe { CC_SHA256(data.as_ptr() as *const c_void, data.len() as u32, out.as_mut_ptr()) };
+    out
+}
+
+pub fn random_hex(bytes: usize) -> String {
+    let mut buf = vec![0u8; bytes];
+    unsafe { arc4random_buf(buf.as_mut_ptr() as *mut c_void, bytes) };
+    hex(&buf)
+}
+
+/// The id the phone keeps a Mac under: the start of the SHA-256 of its token. It tells which announced Mac is already paired.
+pub fn id_of(token: &str) -> String {
+    hex(&sha256(token.to_ascii_lowercase().as_bytes())[..8])
 }
 
 pub fn hmac(key: &[u8], data: &[u8]) -> [u8; MAC_LEN] {
@@ -60,6 +78,11 @@ pub struct Keys {
 impl Keys {
     pub fn from_token(token: &str) -> Self {
         Keys { enc: hmac(token.as_bytes(), b"deskstats-enc"), mac: hmac(token.as_bytes(), b"deskstats-mac") }
+    }
+
+    /// Keys for handing the token over during pairing, from the secret both sides got by ECDH.
+    pub fn for_pairing(secret: &[u8]) -> Self {
+        Keys { enc: hmac(secret, b"deskstats-pair-enc"), mac: hmac(secret, b"deskstats-pair-mac") }
     }
 
     pub fn sign(&self, text: &str) -> String {
@@ -138,6 +161,14 @@ mod tests {
         assert_eq!(unhex(&hex(&[1, 2, 250])), Some(vec![1, 2, 250]));
         assert_eq!(unhex("abc"), None);
         assert_eq!(unhex("zz"), None);
+    }
+
+    #[test]
+    fn sha256_and_id() {
+        assert_eq!(hex(&sha256(b"abc")), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        assert_eq!(id_of("ABC"), "ba7816bf8f01cfea");
+        assert_eq!(random_hex(16).len(), 32);
+        assert_ne!(random_hex(16), random_hex(16));
     }
 
     #[test]

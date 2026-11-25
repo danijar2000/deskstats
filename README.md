@@ -34,7 +34,7 @@ network load with live charts.
 
 - **A Mac** with macOS 11 or later (Apple silicon or Intel).
 - **An Android phone** with Android 2.3 or later. The USB link needs Android 5.0; older phones
-  use Wi‑Fi only, but they too need the cable once.
+  use Wi‑Fi only.
 - **adb** on the Mac for the USB link: `brew install android-platform-tools`.
 - **USB debugging** on the phone: Settings → About phone, tap "Build number" seven times, then
   Settings → Developer options → USB debugging. Allow debugging for this Mac when the phone asks.
@@ -77,9 +77,10 @@ arrives, remove Deskstats from the list (−) and add `~/Applications/Deskstats.
 - **The gear** opens the settings: language (8 languages), theme (dark, light, neon),
   orientation (landscape, portrait, auto), the blocks of the main screen, Wi‑Fi connection,
   Mac notifications, update interval and weather refresh.
-- **Several Macs**: connect the phone by cable to each Mac once, and it remembers them all. Swipe
-  the main screen left or right to switch; the dots at the top show which Mac is shown. The list,
-  with × to forget a Mac, is in the settings under Macs.
+- **Several Macs**: Macs running deskstats on the same Wi‑Fi appear in the settings under Macs, like
+  devices in LocalSend. Tap one: the phone and the Mac show the same six-digit code, and the Mac asks
+  whether to let the phone in. Connecting the phone to a Mac with the cable once adds it too. Swipe
+  the main screen left or right to switch; the dots at the top show which Mac is shown. × forgets a Mac.
 - **Back** closes a page; an unattended page closes by itself after a few minutes.
 
 To avoid burn-in the picture moves a few pixels every two minutes and the screen dims after
@@ -116,10 +117,12 @@ the phone); the entries in Privacy & Security can only be removed there by hand.
 
 ## Security
 
-The phone and the Mac encrypt everything they send each other with a key the phone gets once
-over the cable; the key itself never crosses the network. Requests without it are refused
-before anything runs. Nothing leaves the Mac except the coordinates of the chosen city, sent to
-open-meteo.com for the weather.
+The phone and the Mac encrypt everything they send each other with a key the phone gets either
+over the cable, or over Wi‑Fi once the Mac's user allows it: the phone and the Mac then agree on a
+secret by ECDH (P-256), both show a six-digit code made from it, and the key travels encrypted
+with that secret. Requests without the key are refused before anything runs. Every Mac announces
+its name, model and address on the local network so that phones can list it; nothing else is open.
+Nothing leaves the Mac except the coordinates of the chosen city, sent to open-meteo.com for the weather.
 
 ## Build from source
 
