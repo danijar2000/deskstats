@@ -4,7 +4,7 @@
     <string name="status_wifi">Mac · на связи по Wi‑Fi</string>
     <string name="status_starting">Mac · запуск</string>
     <string name="status_waiting">Mac · ожидание данных</string>
-    <string name="status_no_token">Mac · нужен токен: подключите телефон по USB</string>
+    <string name="status_no_token">Нет пары: выберите компьютер в ⚙ → Компьютеры или подключите телефон по USB</string>
     <string name="status_refused">Mac · сервер отказал (код %1$d)</string>
     <string name="status_offline">Mac · нет связи</string>
 
@@ -16,7 +16,7 @@
     <string name="choose_city_hint">Нажмите, чтобы выбрать город</string>
     <string name="feels">ощущ. %1$s</string>
     <string name="new_alert">Новое уведомление</string>
-    <string name="alerts_start">Запустите deskstats на компьютере и подключите телефон по USB.</string>
+    <string name="alerts_start">Запустите deskstats на компьютере, затем выберите его в ⚙ → Компьютеры или подключите телефон по USB.</string>
     <string name="alerts_denied">macOS не даёт серверу читать уведомления: выдайте ему «Полный доступ к диску».</string>
     <string name="alerts_server_off">Уведомления на сервере выключены.</string>
     <string name="alerts_unsupported">С этого компьютера уведомления пока не читаются (только с Mac).</string>

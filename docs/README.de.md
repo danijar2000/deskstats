@@ -57,6 +57,8 @@ Kein Telefon am Kabel? Hänge `-s -- --no-phone` hinter `bash` an und installier
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 selbst.
 
+**Kein Kabel oder kein adb?** Dann zeigt das Skript einen QR-Code mit dem Link zur App: mit dem Telefon scannen, die App installieren und öffnen. Im selben WLAN findet sie den Computer von selbst; tippe ihn an und erlaube das Telefon auf dem Computer. adb wird nur für das USB-Kabel gebraucht.
+
 ### Berechtigungen auf dem Mac
 
 Öffne Systemeinstellungen → Datenschutz & Sicherheit und erlaube **Deskstats**:

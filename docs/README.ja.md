@@ -53,6 +53,8 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 を自分でインストールしてください。
 
+**ケーブルや adb がない場合：** スクリプトがアプリへのリンクの QR コードを表示します。スマートフォンで読み取り、アプリをインストールして開いてください。同じ Wi‑Fi にあればアプリがコンピュータを自動で見つけます。タップして、コンピュータ側でスマートフォンを許可してください。adb が必要なのは USB ケーブルを使うときだけです。
+
 ### Mac のアクセス許可
 
 システム設定 → プライバシーとセキュリティ を開き、**Deskstats** に次を許可します。

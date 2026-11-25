@@ -48,6 +48,8 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 手机没有接数据线？在 `bash` 后加上 `-s -- --no-phone`，然后自行安装
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)。
 
+**没有数据线或没有 adb？** 脚本会显示一个带应用链接的二维码：用手机扫描，安装并打开应用。手机在同一 Wi‑Fi 下会自动找到电脑；轻点它，并在电脑上允许手机连接。只有使用 USB 数据线时才需要 adb。
+
 ### Mac 权限
 
 打开系统设置 → 隐私与安全性，为 **Deskstats** 开启：

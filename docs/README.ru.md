@@ -55,6 +55,8 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 вручную.
 
+**Нет кабеля или adb?** Тогда скрипт покажет QR‑код со ссылкой на приложение: отсканируйте его телефоном, установите приложение и откройте. В той же сети Wi‑Fi оно само найдёт компьютер; нажмите на него и разрешите телефон на компьютере. adb нужен только для USB‑кабеля.
+
 ### Разрешения на Mac
 
 Откройте «Системные настройки» → «Конфиденциальность и безопасность» и разрешите **Deskstats**:

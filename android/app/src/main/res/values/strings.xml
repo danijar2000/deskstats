@@ -17,7 +17,7 @@
     <string name="status_wifi">Mac · connected via Wi‑Fi</string>
     <string name="status_starting">Mac · starting</string>
     <string name="status_waiting">Mac · waiting for data</string>
-    <string name="status_no_token">Mac · token needed: connect the phone by USB</string>
+    <string name="status_no_token">Not paired: pick the computer under ⚙ → Computers, or connect the phone by USB</string>
     <string name="status_refused">Mac · the server refused (code %1$d)</string>
     <string name="status_offline">Mac · no connection</string>
 
@@ -29,7 +29,7 @@
     <string name="choose_city_hint">Tap to choose a city</string>
     <string name="feels">feels %1$s</string>
     <string name="new_alert">New notification</string>
-    <string name="alerts_start">Start deskstats on the computer and connect the phone by USB.</string>
+    <string name="alerts_start">Start deskstats on the computer, then pick it under ⚙ → Computers or connect the phone by USB.</string>
     <string name="alerts_denied">macOS does not let the server read notifications: give it Full Disk Access.</string>
     <string name="alerts_server_off">Notifications are off on the server.</string>
     <string name="alerts_unsupported">Notifications are not read on this computer yet (only on a Mac).</string>

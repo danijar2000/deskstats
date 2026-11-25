@@ -188,6 +188,8 @@ class MainActivity : Activity(), Page.Host {
     @Volatile private var paired = Servers(emptyList(), null)
     override val servers: Servers get() = paired
     @Volatile private var beacon: Beacon? = null
+    /** The list of computers when it was opened because none is paired, not by the user. */
+    private var welcome: Page? = null
     private val heard = LinkedHashMap<String, Nearby>()
     @Volatile private var scanning = false
 
@@ -350,6 +352,8 @@ class MainActivity : Activity(), Page.Host {
     /** Takes a new list of Macs; when another Mac becomes the active one, the panel starts over with its data. */
     private fun applyServers(new: Servers, direction: Int = 0) {
         val oldId = paired.active?.id
+        // The first computer came (over the cable, say) while the list opened by itself was up: show its panel.
+        val first = paired.list.isEmpty() && new.list.isNotEmpty() && welcome != null && pages.lastOrNull() === welcome
         paired = new
         histories.keys.retainAll(new.list.map { it.id }.toSet())
         val id = new.active?.id
@@ -373,6 +377,10 @@ class MainActivity : Activity(), Page.Host {
             clock.startAnimation(slide(direction))
         }
         restartPolling()
+        if (first) {
+            welcome = null
+            home()
+        }
     }
 
     private fun slide(direction: Int): Animation = AnimationSet(true).apply {
@@ -515,6 +523,12 @@ class MainActivity : Activity(), Page.Host {
     override fun onStart() {
         super.onStart()
         loadSettings()
+        // Nothing is paired yet: go straight to the list where the computers on this Wi‑Fi show up.
+        if (paired.list.isEmpty() && pages.isEmpty()) {
+            val list = ServersPage(ui, this)
+            welcome = list
+            open(list)
+        }
         applyPlace()
         macAsleep = false
         root.visibility = View.VISIBLE

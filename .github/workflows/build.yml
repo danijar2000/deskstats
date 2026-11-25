@@ -75,6 +75,8 @@ jobs:
           server/target/${{ matrix.arch }}-unknown-linux-musl/release/deskstats 2> server.log &
           sleep 2
           token="$(cat "$HOME/.config/deskstats/token")"
+          server/target/${{ matrix.arch }}-unknown-linux-musl/release/deskstats --qr https://example.com/app.apk
+          test "$(server/target/${{ matrix.arch }}-unknown-linux-musl/release/deskstats --qr-bits https://example.com/app.apk | wc -l)" = 25
           curl -fsS -H 'X-Deskstats: 1' http://127.0.0.1:8787/info | tee info.json
           grep -q '"app":"deskstats"' info.json
           curl -s -H "Authorization: Bearer $token" http://127.0.0.1:8787/stats > /dev/null
@@ -136,6 +138,8 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File deskstats-server/install.ps1
           if ($LASTEXITCODE -ne 0) { throw 'install.ps1 failed' }
           if (-not (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name deskstats)) { throw 'does not start at sign-in' }
+          $rows = @(& "$env:LOCALAPPDATA\deskstats\deskstats.exe" --qr-bits https://example.com/app.apk)
+          if ($rows.Count -ne 25 -or $rows[0] -notmatch '^1111111[01]+1111111$') { throw "no QR code: $rows" }
           $token = (Get-Content "$env:APPDATA\deskstats\token" -Raw).Trim()
           $info = curl.exe -fsS -H 'X-Deskstats: 1' http://127.0.0.1:8787/info
           $info
