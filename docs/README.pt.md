@@ -69,6 +69,27 @@ Todo o resto funciona sem elas. O Deskstats percebe as permissões sozinho em at
 Depois de uma atualização, o macOS as pede de novo; se a chave já estiver ativada mas nada
 chegar, remova o Deskstats da lista (−) e adicione `~/Applications/Deskstats.app` novamente.
 
+### Linux e Windows
+
+O servidor também funciona no Linux (x86-64 e ARM64, qualquer distribuição com systemd) e no Windows 10 ou posterior (64 bits). O app do telefone é o mesmo.
+
+Linux, num terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash
+```
+
+Windows, no PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1 | iex
+```
+
+- No Linux o servidor fica em `~/.local/bin/deskstats` e inicia no login como serviço de usuário do systemd; no Windows fica em `%LOCALAPPDATA%\deskstats`, inicia no login e grava o registro em `%APPDATA%\deskstats\log.txt`.
+- Para o cabo USB instale o adb: `sudo apt install android-tools-adb` (ou o pacote da sua distribuição) ou `winget install Google.PlatformTools`.
+- Para a Wi‑Fi libere TCP 8787 e UDP 8788 no firewall. Para deixar um telefone entrar pela Wi‑Fi, o Linux precisa do `zenity` ou do `kdialog` para mostrar a pergunta.
+- Ainda não disponível nesses sistemas: notificações, a bateria do mouse e do teclado no Windows, a carga da GPU no Windows e no Linux fora AMD, e o telefone apagar junto com a tela.
+
 ## Uso
 
 - **Os cartões de carga** (CPU, GPU, RAM, Rede) abrem os aplicativos do Mac ordenados por essa

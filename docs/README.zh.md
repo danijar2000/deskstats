@@ -59,6 +59,27 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 没有这些权限，其他功能也都能正常使用。Deskstats 会在半分钟内自动识别权限。更新后 macOS 会再次请求权限；
 如果开关已打开却收不到任何通知，请将 Deskstats 从列表中移除（−），再重新添加 `~/Applications/Deskstats.app`。
 
+### Linux 和 Windows
+
+服务端也可以在 Linux（x86-64 和 ARM64，任何带 systemd 的发行版）以及 Windows 10 或更高版本（64 位）上运行。手机应用是同一个。
+
+Linux，在终端中：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash
+```
+
+Windows，在 PowerShell 中：
+
+```powershell
+irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1 | iex
+```
+
+- 在 Linux 上，服务端位于 `~/.local/bin/deskstats`，登录时作为 systemd 用户服务启动；在 Windows 上位于 `%LOCALAPPDATA%\deskstats`，登录时启动，日志在 `%APPDATA%\deskstats\log.txt`。
+- 使用 USB 数据线需要安装 adb：`sudo apt install android-tools-adb`（或你的发行版对应的软件包），或 `winget install Google.PlatformTools`。
+- 使用 Wi‑Fi 需要在防火墙中放行 TCP 8787 和 UDP 8788。要通过 Wi‑Fi 允许手机连接，Linux 需要安装 `zenity` 或 `kdialog` 来显示确认窗口。
+- 这些系统上暂未支持：通知、Windows 上鼠标和键盘的电量、Windows 以及非 AMD 的 Linux 上的 GPU 负载，以及手机随显示器一起熄屏。
+
 ## 使用
 
 - **负载卡片**（CPU、GPU、RAM、网络）会打开按该负载排序的 Mac 应用。CPU 按核心计算，与活动监视器一致：

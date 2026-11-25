@@ -601,6 +601,7 @@ class AlertsPage(context: Context, host: Host) : Page(context, host) {
             when {
                 !host.options.alerts -> R.string.alerts_off
                 stats.alertsDenied -> R.string.alerts_page_denied
+                !stats.alertsSupported -> R.string.alerts_unsupported
                 stats.alerts == null -> R.string.alerts_server_off
                 else -> R.string.alerts_page_none
             },

@@ -67,6 +67,27 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 полуминуты. После обновления macOS запрашивает их снова; если переключатель уже включён, но
 ничего не приходит, удалите Deskstats из списка (−) и снова добавьте `~/Applications/Deskstats.app`.
 
+### Linux и Windows
+
+Сервер работает и на Linux (x86-64 и ARM64, любой дистрибутив с systemd), и на Windows 10 и новее (64-бит). Приложение на телефоне то же самое.
+
+Linux, в терминале:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash
+```
+
+Windows, в PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1 | iex
+```
+
+- На Linux сервер лежит в `~/.local/bin/deskstats` и запускается при входе как пользовательская служба systemd; на Windows — в `%LOCALAPPDATA%\deskstats`, запускается при входе, журнал в `%APPDATA%\deskstats\log.txt`.
+- Для USB‑кабеля установите adb: `sudo apt install android-tools-adb` (или пакет вашего дистрибутива) либо `winget install Google.PlatformTools`.
+- Для Wi‑Fi откройте в брандмауэре TCP 8787 и UDP 8788. Чтобы пустить телефон по Wi‑Fi, на Linux нужен `zenity` или `kdialog`: он показывает вопрос.
+- Пока не работает на этих системах: уведомления, заряд мыши и клавиатуры на Windows, загрузка GPU на Windows и на Linux кроме AMD, а также гашение телефона вместе с дисплеем.
+
 ## Использование
 
 - **Карточки нагрузки** (CPU, GPU, RAM, Сеть) открывают приложения Mac, отсортированные по этой

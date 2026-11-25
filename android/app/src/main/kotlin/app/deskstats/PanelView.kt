@@ -240,6 +240,7 @@ class PanelView(context: Context, private val history: History) : View(context) 
         val alertsStart = c.getString(R.string.alerts_start)
         val alertsDenied = c.getString(R.string.alerts_denied)
         val alertsServerOff = c.getString(R.string.alerts_server_off)
+        val alertsUnsupported = c.getString(R.string.alerts_unsupported)
         val alertsOff = c.getString(R.string.alerts_off)
         val alertsNone = c.getString(R.string.alerts_none)
         val mouse = c.getString(R.string.battery_mouse)
@@ -899,6 +900,7 @@ class PanelView(context: Context, private val history: History) : View(context) 
                 st == null -> words.alertsStart
                 !alertsEnabled -> words.alertsOff
                 st.alertsDenied -> words.alertsDenied
+                !st.alertsSupported -> words.alertsUnsupported
                 alerts == null -> words.alertsServerOff
                 else -> words.alertsNone
             }

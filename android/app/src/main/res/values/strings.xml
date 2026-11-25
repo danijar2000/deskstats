@@ -32,6 +32,7 @@
     <string name="alerts_start">Start deskstats on the Mac and connect the phone by USB.</string>
     <string name="alerts_denied">macOS does not let the server read notifications: give it Full Disk Access.</string>
     <string name="alerts_server_off">Notifications are off on the server.</string>
+    <string name="alerts_unsupported">Notifications are not read on this computer yet (only on a Mac).</string>
     <string name="alerts_off">Mac notifications are off in Settings.</string>
     <string name="alerts_none">No new notifications.</string>
     <string name="battery_mouse">Mouse</string>

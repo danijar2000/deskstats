@@ -19,6 +19,7 @@
     <string name="alerts_start">Inicia deskstats en el Mac y conecta el teléfono por USB.</string>
     <string name="alerts_denied">macOS no deja al servidor leer las notificaciones: dale «Acceso total al disco».</string>
     <string name="alerts_server_off">Las notificaciones están desactivadas en el servidor.</string>
+    <string name="alerts_unsupported">En este ordenador aún no se leen las notificaciones (solo en un Mac).</string>
     <string name="alerts_off">Las notificaciones del Mac están desactivadas en Ajustes.</string>
     <string name="alerts_none">No hay notificaciones nuevas.</string>
     <string name="battery_mouse">Ratón</string>

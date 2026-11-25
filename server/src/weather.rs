@@ -87,7 +87,7 @@ impl Weather {
 
 // -q: curl must not read ~/.curlrc while it runs with this server's disk access.
 fn curl(url: &str) -> Option<String> {
-    let (ok, text) = crate::util::run("/usr/bin/curl", &["-q", "-fsS", "--max-time", "20", "--max-filesize", "200000", "--proto", "=https", url], Duration::from_secs(25))?;
+    let (ok, text) = crate::util::run(crate::sys::CURL, &["-q", "-fsS", "--max-time", "20", "--max-filesize", "200000", "--proto", "=https", url], Duration::from_secs(25))?;
     ok.then_some(text)
 }
 

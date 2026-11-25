@@ -45,6 +45,113 @@ jobs:
           name: deskstats-server-macos
           path: deskstats-server-macos.tar.gz
 
+  server-linux:
+    strategy:
+      matrix:
+        include:
+          - { runner: ubuntu-latest, arch: x86_64 }
+          - { runner: ubuntu-24.04-arm, arch: aarch64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust target
+        run: rustup target add ${{ matrix.arch }}-unknown-linux-musl
+      - name: Tests
+        working-directory: server
+        run: cargo test
+      - name: Clippy
+        working-directory: server
+        run: cargo clippy --release --all-targets -- -D warnings
+      - name: Shell scripts
+        run: shellcheck -S warning setup.sh server/install-linux.sh server/install.sh
+      # Linked statically against musl, so one program runs on every distribution.
+      - name: Build
+        working-directory: server
+        run: cargo build --release --target ${{ matrix.arch }}-unknown-linux-musl
+      # The real program, started and asked like a phone on the cable would ask it.
+      - name: Run it
+        run: |
+          server/target/${{ matrix.arch }}-unknown-linux-musl/release/deskstats 2> server.log &
+          sleep 2
+          token="$(cat "$HOME/.config/deskstats/token")"
+          curl -fsS -H 'X-Deskstats: 1' http://127.0.0.1:8787/info | tee info.json
+          grep -q '"app":"deskstats"' info.json
+          curl -s -H "Authorization: Bearer $token" http://127.0.0.1:8787/stats > /dev/null
+          sleep 2
+          curl -fsS -H "Authorization: Bearer $token" http://127.0.0.1:8787/stats | tee stats.json
+          grep -q '"os":"linux"' stats.json
+          curl -fsS -H "Authorization: Bearer $token" 'http://127.0.0.1:8787/procs?sort=ram' | grep -q '"name":"deskstats"'
+          kill -TERM "$(pidof deskstats)"
+          sleep 1
+          cat server.log
+          if pidof deskstats; then echo 'still running after SIGTERM'; exit 1; fi
+      - name: Package
+        run: |
+          dir=deskstats-server
+          mkdir -p "$dir"
+          cp server/target/${{ matrix.arch }}-unknown-linux-musl/release/deskstats "$dir/"
+          cp server/install-linux.sh "$dir/install.sh"
+          sed -n 's/^version = "\(.*\)"/\1/p' server/Cargo.toml | head -1 > "$dir/VERSION"
+          tar -czf deskstats-server-linux-${{ matrix.arch }}.tar.gz "$dir"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deskstats-server-linux-${{ matrix.arch }}
+          path: deskstats-server-linux-${{ matrix.arch }}.tar.gz
+
+  server-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests
+        working-directory: server
+        run: cargo test
+      - name: Clippy
+        working-directory: server
+        run: cargo clippy --release --all-targets -- -D warnings
+      - name: Build
+        working-directory: server
+        run: cargo build --release
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force deskstats-server | Out-Null
+          Copy-Item server/target/release/deskstats.exe deskstats-server/
+          Copy-Item server/install.ps1 deskstats-server/
+          Compress-Archive -Path deskstats-server -DestinationPath deskstats-server-windows-x86_64.zip
+      - name: PowerShell scripts parse
+        shell: pwsh
+        run: |
+          foreach ($file in 'setup.ps1', 'server/install.ps1') {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) { $errors; throw "$file does not parse" }
+          }
+      # The packaged program, installed by its installer and asked like a phone on the cable would ask it.
+      - name: Install it, run it, remove it
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File deskstats-server/install.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'install.ps1 failed' }
+          $token = (Get-Content "$env:APPDATA\deskstats\token" -Raw).Trim()
+          $info = curl.exe -fsS -H 'X-Deskstats: 1' http://127.0.0.1:8787/info
+          $info
+          if ($info -notmatch '"app":"deskstats"') { throw 'no /info' }
+          curl.exe -s -H "Authorization: Bearer $token" http://127.0.0.1:8787/stats | Out-Null
+          Start-Sleep -Seconds 2
+          $stats = curl.exe -fsS -H "Authorization: Bearer $token" http://127.0.0.1:8787/stats
+          $stats
+          if ($stats -notmatch '"os":"windows"') { throw 'no /stats' }
+          $procs = curl.exe -fsS -H "Authorization: Bearer $token" 'http://127.0.0.1:8787/procs?sort=ram'
+          if ($procs -notmatch '"name":"deskstats"') { throw 'no /procs' }
+          Get-Content "$env:APPDATA\deskstats\log.txt"
+          powershell -NoProfile -ExecutionPolicy Bypass -File deskstats-server/install.ps1 -Uninstall
+          if (Get-Process -Name deskstats -ErrorAction SilentlyContinue) { throw 'still running after uninstall' }
+          if (Test-Path "$env:LOCALAPPDATA\deskstats\deskstats.exe") { throw 'not removed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deskstats-server-windows-x86_64
+          path: deskstats-server-windows-x86_64.zip
+
   android:
     runs-on: ubuntu-latest
     steps:
@@ -66,7 +173,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [server, android]
+    needs: [server, server-linux, server-windows, android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -78,5 +185,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" deskstats-server-macos.tar.gz deskstats.apk \
+          gh release create "$GITHUB_REF_NAME" deskstats-server-macos.tar.gz \
+            deskstats-server-linux-x86_64.tar.gz deskstats-server-linux-aarch64.tar.gz \
+            deskstats-server-windows-x86_64.zip deskstats.apk \
             --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
