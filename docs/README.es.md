@@ -56,6 +56,8 @@ en el teléfono. Unos segundos después, el Mac abre el panel en el teléfono y 
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 por tu cuenta.
 
+**¿Sin cable o sin adb?** Entonces el script muestra un código QR con el enlace a la app: escanéalo con el teléfono, instala la app y ábrela. En la misma Wi‑Fi encuentra el ordenador sola; tócalo y permite el teléfono en el ordenador. adb solo hace falta para el cable USB.
+
 ### Permisos en el Mac
 
 Abre Ajustes del Sistema → Privacidad y seguridad y autoriza a **Deskstats** en:

@@ -56,6 +56,8 @@ Sem telefone no cabo? Adicione `-s -- --no-phone` depois de `bash` e instale
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 você mesmo.
 
+**Sem cabo ou sem adb?** Então o script mostra um código QR com o link do app: escaneie com o telefone, instale o app e abra-o. Na mesma Wi‑Fi ele encontra o computador sozinho; toque nele e permita o telefone no computador. O adb só é necessário para o cabo USB.
+
 ### Permissões no Mac
 
 Abra Ajustes do Sistema → Privacidade e Segurança e permita o **Deskstats** em:

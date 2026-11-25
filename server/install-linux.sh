@@ -83,4 +83,4 @@ echo
 echo "For the phone to find this computer over Wi-Fi, a firewall must let in TCP 8787 and UDP 8788, e.g.:"
 echo "  sudo ufw allow 8787/tcp && sudo ufw allow 8788/udp"
 echo "To let a phone in over Wi-Fi, zenity or kdialog must be installed (it shows the question)."
-echo "For the USB cable, install adb (android-tools-adb or android-tools) and run this again."
+echo "The USB cable is optional: for it, install adb (android-tools-adb or android-tools) and run this again."

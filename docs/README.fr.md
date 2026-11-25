@@ -57,6 +57,8 @@ Pas de téléphone branché ? Ajoutez `-s -- --no-phone` après `bash` et instal
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 vous-même.
 
+**Pas de câble ou pas d'adb ?** Le script affiche alors un code QR avec le lien vers l'app : scannez-le avec le téléphone, installez l'app et ouvrez-la. Sur le même Wi‑Fi, elle trouve l'ordinateur toute seule ; touchez-le et autorisez le téléphone sur l'ordinateur. adb ne sert que pour le câble USB.
+
 ### Autorisations sur le Mac
 
 Ouvrez Réglages Système → Confidentialité et sécurité et autorisez **Deskstats** dans :

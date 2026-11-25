@@ -5,6 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash
 #   curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash -s -- --uninstall
 #
+# Without adb or without a phone on the cable it shows a QR code with the link to the app instead.
 # --no-phone skips the phone.
 set -euo pipefail
 
@@ -18,6 +19,20 @@ for arg in "$@"; do
     *) echo "usage: setup.sh [--no-phone] [--uninstall]" >&2; exit 2 ;;
   esac
 done
+
+# Shows the link to the phone app as a QR code, drawn by the server that was just installed.
+show_qr() {
+  local server
+  for server in "$HOME/Applications/Deskstats.app/Contents/MacOS/deskstats" "$HOME/.local/bin/deskstats"; do
+    if [ -x "$server" ] && "$server" --qr "$base/deskstats.apk" 2>/dev/null; then
+      break
+    fi
+  done
+  echo "  $base/deskstats.apk"
+  echo
+  echo "Scan the code with the phone's camera (or open the link on the phone), install the app and open it."
+  echo "With the phone on the same Wi-Fi as this computer, the app finds it: tap it there and allow it here."
+}
 
 say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 fail() { printf 'setup.sh: %s\n' "$*" >&2; exit 1; }
@@ -59,15 +74,20 @@ for candidate in "$HOME/Library/Android/sdk/platform-tools/adb" "$HOME/Android/S
 done
 if [ -z "$adb" ]; then
   echo
-  echo "adb not found, so the phone app is not installed. Install adb and run setup.sh again:"
+  echo "To put the app on the phone without a cable:"
+  echo
+  show_qr
+  echo
+  echo "For the USB cable instead, install adb and run setup.sh again:"
   echo "  $adb_hint"
   exit 0
 fi
 if ! "$adb" get-state >/dev/null 2>&1; then
   echo
   echo "No phone over USB (USB debugging must be on, with one phone connected)."
-  echo "Connect it and run setup.sh again, or install the app yourself:"
-  echo "  $base/deskstats.apk"
+  echo "Connect it and run setup.sh again, or put the app on the phone without a cable:"
+  echo
+  show_qr
   exit 0
 fi
 

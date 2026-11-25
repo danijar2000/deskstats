@@ -4,7 +4,7 @@
     <string name="status_wifi">Mac · Wi‑Fi で接続中</string>
     <string name="status_starting">Mac · 起動中</string>
     <string name="status_waiting">Mac · データ待ち</string>
-    <string name="status_no_token">Mac · トークンが必要です：USB で接続してください</string>
+    <string name="status_no_token">未ペアリング：⚙ → コンピュータ で選ぶか、スマートフォンを USB で接続してください</string>
     <string name="status_refused">Mac · サーバーが拒否しました（コード %1$d）</string>
     <string name="status_offline">Mac · 接続なし</string>
 
@@ -16,7 +16,7 @@
     <string name="choose_city_hint">タップして都市を選択</string>
     <string name="feels">体感 %1$s</string>
     <string name="new_alert">新しい通知</string>
-    <string name="alerts_start">コンピュータで deskstats を起動し、スマートフォンを USB で接続してください。</string>
+    <string name="alerts_start">コンピュータで deskstats を起動し、⚙ → コンピュータ で選ぶか、スマートフォンを USB で接続してください。</string>
     <string name="alerts_denied">macOS がサーバーに通知の読み取りを許可していません：「フルディスクアクセス」を与えてください。</string>
     <string name="alerts_server_off">サーバーで通知がオフになっています。</string>
     <string name="alerts_unsupported">このコンピュータの通知はまだ読み取れません（Mac のみ対応）。</string>

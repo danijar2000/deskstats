@@ -4,7 +4,7 @@
     <string name="status_wifi">Mac · connecté en Wi‑Fi</string>
     <string name="status_starting">Mac · démarrage</string>
     <string name="status_waiting">Mac · en attente de données</string>
-    <string name="status_no_token">Mac · jeton requis : branchez le téléphone en USB</string>
+    <string name="status_no_token">Non jumelé : choisissez l’ordinateur dans ⚙ → Ordinateurs ou branchez le téléphone en USB</string>
     <string name="status_refused">Mac · le serveur a refusé (code %1$d)</string>
     <string name="status_offline">Mac · pas de connexion</string>
 
@@ -16,7 +16,7 @@
     <string name="choose_city_hint">Touchez pour choisir une ville</string>
     <string name="feels">ressenti %1$s</string>
     <string name="new_alert">Nouvelle notification</string>
-    <string name="alerts_start">Lancez deskstats sur l\'ordinateur et branchez le téléphone en USB.</string>
+    <string name="alerts_start">Lancez deskstats sur l’ordinateur, puis choisissez-le dans ⚙ → Ordinateurs ou branchez le téléphone en USB.</string>
     <string name="alerts_denied">macOS ne laisse pas le serveur lire les notifications : accordez‑lui l\'« Accès complet au disque ».</string>
     <string name="alerts_server_off">Les notifications sont désactivées sur le serveur.</string>
     <string name="alerts_unsupported">Les notifications ne sont pas encore lues sur cet ordinateur (seulement sur un Mac).</string>

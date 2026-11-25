@@ -23,6 +23,29 @@ function Invoke-Adb {
     (& $Adb @Arguments 2>&1 | ForEach-Object { "$_" }) -join "`n"
 }
 
+# Shows the link to the phone app as a QR code. The server that was just installed says which squares are dark;
+# they are drawn here with background colours, which every Windows console can do.
+function Show-Qr {
+    $link = "$base/deskstats.apk"
+    $server = Join-Path $env:LOCALAPPDATA 'deskstats\deskstats.exe'
+    $rows = @()
+    if (Test-Path $server) { $rows = @(& $server --qr-bits $link | Where-Object { $_ -match '^[01]+$' }) }
+    if ($rows.Count -gt 0) {
+        $blank = '0' * $rows[0].Length
+        foreach ($row in @($blank, $blank) + $rows + @($blank, $blank)) {
+            foreach ($square in ("0000$row" + '0000').ToCharArray()) {
+                $colour = if ($square -eq '1') { 'Black' } else { 'White' }
+                Write-Host '  ' -NoNewline -BackgroundColor $colour
+            }
+            Write-Host ''
+        }
+    }
+    Write-Host "  $link"
+    Write-Host ''
+    Write-Host "Scan the code with the phone's camera (or open the link on the phone), install the app and open it."
+    Write-Host 'With the phone on the same Wi-Fi as this computer, the app finds it: tap it there and allow it here.'
+}
+
 $work = Join-Path ([IO.Path]::GetTempPath()) ("deskstats-" + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 try {
@@ -49,7 +72,11 @@ try {
     }
     if (-not $adb) {
         Write-Host ''
-        Write-Host 'adb not found, so the phone app is not installed. Install adb and run setup.ps1 again:'
+        Write-Host 'To put the app on the phone without a cable:'
+        Write-Host ''
+        Show-Qr
+        Write-Host ''
+        Write-Host 'For the USB cable instead, install adb and run setup.ps1 again:'
         Write-Host '  winget install Google.PlatformTools'
         return
     }
@@ -57,8 +84,9 @@ try {
     if ($LASTEXITCODE -ne 0) {
         Write-Host ''
         Write-Host 'No phone over USB (USB debugging must be on, with one phone connected).'
-        Write-Host 'Connect it and run setup.ps1 again, or install the app yourself:'
-        Write-Host "  $base/deskstats.apk"
+        Write-Host 'Connect it and run setup.ps1 again, or put the app on the phone without a cable:'
+        Write-Host ''
+        Show-Qr
         return
     }
     Write-Host '==> Downloading the phone app'

@@ -9,6 +9,7 @@ mod load;
 mod pair;
 mod power;
 mod procs;
+mod qr;
 mod settings;
 #[cfg_attr(target_os = "macos", path = "sys/mac/mod.rs")]
 #[cfg_attr(target_os = "linux", path = "sys/linux/mod.rs")]
@@ -95,6 +96,18 @@ fn head_json(l: &Load) -> String {
 }
 
 fn main() {
+    // "--qr TEXT" prints a QR code for a terminal and "--qr-bits TEXT" prints it as rows of 0 and 1; the
+    // installers use them to show the link to the phone app. Nothing else of the server runs then.
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    if let [flag, text] = arguments.as_slice() {
+        if flag == "--qr" || flag == "--qr-bits" {
+            match qr::Qr::encode(text) {
+                Some(code) => print!("{}", if flag == "--qr" { code.terminal() } else { code.bits() }),
+                None => std::process::exit(2),
+            }
+            return;
+        }
+    }
     #[cfg(target_os = "macos")]
     if std::env::args().nth(1).as_deref() == Some("--ax-check") {
         println!("{}", if sys::alerts::accessibility_granted() { "yes" } else { "no" });
@@ -141,7 +154,7 @@ fn main() {
             let shared = shared.clone();
             spawn("adb", move || adb::run(path, data_dir(), shared));
         }
-        None => log("adb: not found, the phone has to be connected by hand"),
+        None => log("adb: not found; the phone connects over Wi-Fi only"),
     }
 
     let machine = sys::Host::new();

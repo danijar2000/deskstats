@@ -4,7 +4,7 @@
     <string name="status_wifi">Mac · per WLAN verbunden</string>
     <string name="status_starting">Mac · startet</string>
     <string name="status_waiting">Mac · warte auf Daten</string>
-    <string name="status_no_token">Mac · Token fehlt: Telefon per USB verbinden</string>
+    <string name="status_no_token">Nicht gekoppelt: Wähle den Computer unter ⚙ → Computer oder verbinde das Telefon per USB</string>
     <string name="status_refused">Mac · Server hat abgelehnt (Code %1$d)</string>
     <string name="status_offline">Mac · keine Verbindung</string>
 
@@ -16,7 +16,7 @@
     <string name="choose_city_hint">Tippen, um eine Stadt zu wählen</string>
     <string name="feels">gefühlt %1$s</string>
     <string name="new_alert">Neue Mitteilung</string>
-    <string name="alerts_start">Starte deskstats auf dem Computer und verbinde das Telefon per USB.</string>
+    <string name="alerts_start">Starte deskstats auf dem Computer und wähle ihn dann unter ⚙ → Computer oder verbinde das Telefon per USB.</string>
     <string name="alerts_denied">macOS lässt den Server keine Mitteilungen lesen: Gib ihm „Festplattenvollzugriff“.</string>
     <string name="alerts_server_off">Mitteilungen sind auf dem Server aus.</string>
     <string name="alerts_unsupported">Auf diesem Computer werden Mitteilungen noch nicht gelesen (nur auf einem Mac).</string>

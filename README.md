@@ -55,6 +55,8 @@ No phone on a cable? Add `-s -- --no-phone` after `bash` and install
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 yourself.
 
+**No cable or no adb?** Then the script shows a QR code with the link to the app: scan it with the phone, install the app and open it. With the phone on the same Wi‑Fi it finds the computer by itself; tap it and allow the phone on the computer. adb is only needed for the USB cable.
+
 ### Mac permissions
 
 Open System Settings → Privacy & Security and allow **Deskstats**:

@@ -4,7 +4,7 @@
     <string name="status_wifi">Mac · conectado por Wi‑Fi</string>
     <string name="status_starting">Mac · iniciando</string>
     <string name="status_waiting">Mac · esperando datos</string>
-    <string name="status_no_token">Mac · falta el token: conecta el teléfono por USB</string>
+    <string name="status_no_token">Sin enlazar: elige el ordenador en ⚙ → Ordenadores o conecta el teléfono por USB</string>
     <string name="status_refused">Mac · el servidor rechazó la conexión (código %1$d)</string>
     <string name="status_offline">Mac · sin conexión</string>
 
@@ -16,7 +16,7 @@
     <string name="choose_city_hint">Toca para elegir una ciudad</string>
     <string name="feels">sensación %1$s</string>
     <string name="new_alert">Nueva notificación</string>
-    <string name="alerts_start">Inicia deskstats en el ordenador y conecta el teléfono por USB.</string>
+    <string name="alerts_start">Inicia deskstats en el ordenador y elígelo en ⚙ → Ordenadores, o conecta el teléfono por USB.</string>
     <string name="alerts_denied">macOS no deja al servidor leer las notificaciones: dale «Acceso total al disco».</string>
     <string name="alerts_server_off">Las notificaciones están desactivadas en el servidor.</string>
     <string name="alerts_unsupported">En este ordenador aún no se leen las notificaciones (solo en un Mac).</string>

@@ -4,7 +4,7 @@
     <string name="status_wifi">Mac · 已通过 Wi‑Fi 连接</string>
     <string name="status_starting">Mac · 正在启动</string>
     <string name="status_waiting">Mac · 等待数据</string>
-    <string name="status_no_token">Mac · 需要令牌：请用 USB 连接手机</string>
+    <string name="status_no_token">未配对：请在 ⚙ → 电脑 中选择电脑，或用 USB 连接手机</string>
     <string name="status_refused">Mac · 服务器拒绝（代码 %1$d）</string>
     <string name="status_offline">Mac · 未连接</string>
 
@@ -16,7 +16,7 @@
     <string name="choose_city_hint">点按以选择城市</string>
     <string name="feels">体感 %1$s</string>
     <string name="new_alert">新通知</string>
-    <string name="alerts_start">请在电脑上启动 deskstats，并用 USB 连接手机。</string>
+    <string name="alerts_start">请在电脑上启动 deskstats，然后在 ⚙ → 电脑 中选择它，或用 USB 连接手机。</string>
     <string name="alerts_denied">macOS 不允许服务器读取通知：请授予它“完全磁盘访问权限”。</string>
     <string name="alerts_server_off">服务器已关闭通知。</string>
     <string name="alerts_unsupported">暂时无法读取这台电脑的通知（仅支持 Mac）。</string>
