@@ -47,6 +47,7 @@ jobs:
 
   server-linux:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - { runner: ubuntu-latest, arch: x86_64 }
@@ -80,7 +81,8 @@ jobs:
           sleep 2
           curl -fsS -H "Authorization: Bearer $token" http://127.0.0.1:8787/stats | tee stats.json
           grep -q '"os":"linux"' stats.json
-          curl -fsS -H "Authorization: Bearer $token" 'http://127.0.0.1:8787/procs?sort=ram' | grep -q '"name":"deskstats"'
+          curl -fsS -H "Authorization: Bearer $token" 'http://127.0.0.1:8787/procs?sort=ram' | tee procs.json | head -c 300
+          grep -q '"sort":"ram","total":[1-9][0-9]*,"procs":\[{"name":"' procs.json
           kill -TERM "$(pidof deskstats)"
           sleep 1
           cat server.log
@@ -142,7 +144,8 @@ jobs:
           $stats
           if ($stats -notmatch '"os":"windows"') { throw 'no /stats' }
           $procs = curl.exe -fsS -H "Authorization: Bearer $token" 'http://127.0.0.1:8787/procs?sort=ram'
-          if ($procs -notmatch '"name":"deskstats"') { throw 'no /procs' }
+          $procs.Substring(0, [Math]::Min(300, $procs.Length))
+          if ($procs -notmatch '"sort":"ram","total":[1-9][0-9]*,"procs":\[\{"name":"') { throw 'no /procs' }
           Get-Content "$env:APPDATA\deskstats\log.txt"
           powershell -NoProfile -ExecutionPolicy Bypass -File deskstats-server/install.ps1 -Uninstall
           if (Get-Process -Name deskstats -ErrorAction SilentlyContinue) { throw 'still running after uninstall' }
