@@ -162,6 +162,15 @@ class PanelView(context: Context, private val history: History) : View(context) 
                 invalidate()
             }
         }
+    /** False for a Linux or Windows computer: the status line then names it instead of saying "Mac". */
+    var serverIsMac = true
+        set(value) {
+            if (field != value) {
+                field = value
+                describe(true)
+                invalidate()
+            }
+        }
 
     private var weather: Weather? = null
     private var weatherMissingSince = 0L
@@ -511,7 +520,7 @@ class PanelView(context: Context, private val history: History) : View(context) 
 
     private fun statusLabel(): String {
         val label = linkLabel()
-        return if (servers > 1 && serverName.isNotEmpty() && label.startsWith(MAC)) serverName + label.substring(MAC.length) else label
+        return if ((servers > 1 || !serverIsMac) && serverName.isNotEmpty() && label.startsWith(MAC)) serverName + label.substring(MAC.length) else label
     }
 
     private fun linkLabel(): String = when (link) {

@@ -53,9 +53,12 @@ cat > "$unit" <<UNIT
 Description=deskstats: this computer's stats on an Android phone
 
 [Service]
-ExecStart=$bin
+# %h is the home directory; the quotes keep a path with spaces in one piece.
+ExecStart="%h/.local/bin/deskstats"
 Restart=on-failure
 RestartSec=30
+# Stop only the server itself: the adb server it may have started is shared with other tools.
+KillMode=process
 
 [Install]
 WantedBy=default.target

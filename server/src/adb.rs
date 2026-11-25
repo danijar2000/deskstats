@@ -69,9 +69,10 @@ pub fn run(path: String, dir: String, shared: Arc<Shared>) {
                 log(if ok { "adb: phone connected" } else { "adb: no phone on USB" });
             }
             reachable = Some(ok);
-            // A phone that was just plugged in gets the token once, unless it is already showing this Mac.
+            // A phone that was just plugged in gets the token once, unless a phone already reads this computer over
+            // the cable. Requests over Wi‑Fi do not count: they may come from another phone.
             let new: Vec<&String> = phones.iter().filter(|serial| !known.contains(serial)).collect();
-            if !new.is_empty() && quiet(&shared.last_request_ms) {
+            if !new.is_empty() && quiet(&shared.last_local_ms) {
                 let script = format!("am start -n {CONFIG_ACTIVITY} --ei port {} --es token {}\n", shared.port, shared.token);
                 for serial in &new {
                     adb.run(&["-s", serial, "shell"], Some(&script));
@@ -84,7 +85,7 @@ pub fn run(path: String, dir: String, shared: Arc<Shared>) {
             }
         }
         plugged = wait_for_usb(FALLBACK);
-        // A phone that reads this Mac over the cable is fine as it is: nothing to do until USB changes.
+        // A phone that reads this computer over the cable is fine as it is: nothing to do until USB changes.
         while !plugged && !quiet(&shared.last_local_ms) {
             plugged = wait_for_usb(FALLBACK);
         }

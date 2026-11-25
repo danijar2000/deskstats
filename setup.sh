@@ -43,7 +43,7 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 say "Downloading the server"
-curl -fsSL "$base/$archive" -o "$work/server.tar.gz" || fail "cannot download $base/$archive"
+curl -fsSL "$base/$archive" -o "$work/server.tar.gz" || fail "cannot download $base/$archive (if the latest release has no build for this system yet, build from source: https://github.com/danijar2000/deskstats#build-from-source)"
 tar -xzf "$work/server.tar.gz" -C "$work"
 if [ "$uninstall" = 1 ]; then
   "$work/deskstats-server/install.sh" --uninstall
