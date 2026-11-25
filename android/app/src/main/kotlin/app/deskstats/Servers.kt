@@ -6,15 +6,22 @@ import org.json.JSONException
 import org.json.JSONObject
 import java.security.MessageDigest
 
-/** One Mac the phone is paired with: its token, the name it reports and where it was last heard on Wi‑Fi. */
-class Server(val token: String, val name: String = "", val host: String? = null, val port: Int = 0) {
+/**
+ * One computer the phone is paired with: its token, the name it reports, where it was last heard on Wi‑Fi and the
+ * system it runs ("macos", "linux", "windows"; empty until it says, which only servers on a Mac never did).
+ */
+class Server(val token: String, val name: String = "", val host: String? = null, val port: Int = 0, val os: String = "") {
     val id: String = idOf(token)
     val keys: Keys by lazy { Keys(token) }
     val hasWifi get() = host != null && port in 1..65535
 
-    fun named(name: String) = Server(token, name, host, port)
+    val isMac get() = os.isEmpty() || os == "macos"
 
-    fun at(host: String, port: Int) = Server(token, name, host, port)
+    fun named(name: String) = Server(token, name, host, port, os)
+
+    fun at(host: String, port: Int) = Server(token, name, host, port, os)
+
+    fun running(os: String) = Server(token, name, host, port, os)
 
     companion object {
         fun idOf(token: String): String {
@@ -75,7 +82,7 @@ class Servers(val list: List<Server>, activeId: String?) {
     private fun save(prefs: SharedPreferences) {
         val array = JSONArray()
         for (s in list) {
-            val o = JSONObject().put("token", s.token).put("name", s.name)
+            val o = JSONObject().put("token", s.token).put("name", s.name).put("os", s.os)
             if (s.hasWifi) o.put("host", s.host).put("port", s.port)
             array.put(o)
         }
@@ -99,7 +106,7 @@ class Servers(val list: List<Server>, activeId: String?) {
                     val token = o.optString("token")
                     if (!validToken(token) || list.any { it.id == Server.idOf(token) }) continue
                     val host = o.optString("host").takeIf { it.isNotEmpty() && Settings.isPrivateAddress(it) }
-                    list.add(Server(token, o.optString("name"), host, if (host == null) 0 else o.optInt("port")))
+                    list.add(Server(token, o.optString("name"), host, if (host == null) 0 else o.optInt("port"), o.optString("os")))
                 }
             } catch (e: JSONException) {
             }

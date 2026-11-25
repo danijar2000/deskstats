@@ -15,12 +15,24 @@ if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -and $env:PROCESSOR_ARCHITEW6432 -ne
     throw 'setup.ps1: there is a build for 64-bit Intel/AMD Windows only; build from source on other machines'
 }
 
+# Runs adb and returns everything it printed. Windows PowerShell 5.1 turns what a program writes to its error
+# stream into a terminating error while $ErrorActionPreference is 'Stop', so it is 'Continue' in here only.
+function Invoke-Adb {
+    param([string]$Adb, [string[]]$Arguments)
+    $ErrorActionPreference = 'Continue'
+    (& $Adb @Arguments 2>&1 | ForEach-Object { "$_" }) -join "`n"
+}
+
 $work = Join-Path ([IO.Path]::GetTempPath()) ("deskstats-" + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 try {
     Write-Host '==> Downloading the server'
     $zip = Join-Path $work 'server.zip'
-    Invoke-WebRequest -UseBasicParsing "$base/deskstats-server-windows-x86_64.zip" -OutFile $zip
+    try {
+        Invoke-WebRequest -UseBasicParsing "$base/deskstats-server-windows-x86_64.zip" -OutFile $zip
+    } catch {
+        throw "setup.ps1: cannot download $base/deskstats-server-windows-x86_64.zip ($($_.Exception.Message)). If the latest release has no Windows build yet, build from source: https://github.com/danijar2000/deskstats#build-from-source"
+    }
     Expand-Archive -Path $zip -DestinationPath $work -Force
     $install = Join-Path $work 'deskstats-server\install.ps1'
     if ($Uninstall) {
@@ -41,7 +53,7 @@ try {
         Write-Host '  winget install Google.PlatformTools'
         return
     }
-    & $adb get-state 2>$null | Out-Null
+    Invoke-Adb $adb @('get-state') | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Host ''
         Write-Host 'No phone over USB (USB debugging must be on, with one phone connected).'
@@ -53,7 +65,7 @@ try {
     $apk = Join-Path $work 'deskstats.apk'
     Invoke-WebRequest -UseBasicParsing "$base/deskstats.apk" -OutFile $apk
     Write-Host '==> Installing the app on the phone'
-    $out = (& $adb install -r $apk 2>&1 | Out-String)
+    $out = Invoke-Adb $adb @('install', '-r', $apk)
     if ($LASTEXITCODE -ne 0) {
         Write-Host $out
         if ($out -match 'INSTALL_FAILED_UPDATE_INCOMPATIBLE|INSTALL_FAILED_VERSION_DOWNGRADE') {

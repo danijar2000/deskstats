@@ -59,6 +59,7 @@ class Stats(
     val alertsDenied: Boolean,
     /** False for a computer whose system the server cannot read notifications from (Linux, Windows). */
     val alertsSupported: Boolean,
+    val os: String,
 ) {
     companion object {
         private fun JSONObject.optFloat(name: String): Float? =
@@ -125,6 +126,7 @@ class Stats(
                 alertsDenied = o.has("alerts") && o.isNull("alerts"),
                 // Servers before the other systems were supported are Macs and do not say what they run on.
                 alertsSupported = o.optString("os", "macos") == "macos",
+                os = o.optString("os", "macos").take(16),
             )
         }
     }
@@ -233,7 +235,7 @@ class MainActivity : Activity(), Page.Host {
         changeServers { s ->
             val added = s.withToken(token)
             val server = added.byId(mac.id) ?: return@changeServers added
-            added.replace(server.at(mac.host, mac.port).let { if (mac.name.isEmpty()) it else it.named(mac.name) }).select(mac.id)
+            added.replace(server.at(mac.host, mac.port).running(mac.os).let { if (mac.name.isEmpty()) it else it.named(mac.name) }).select(mac.id)
         }
         home()
     }
@@ -339,6 +341,7 @@ class MainActivity : Activity(), Page.Host {
         panel.servers = s.list.size
         panel.serverIndex = s.index
         panel.serverName = s.active?.let(::serverName) ?: ""
+        panel.serverIsMac = s.active?.isMac ?: true
         (pages.lastOrNull() as? ServersPage)?.resumed()
     }
 
@@ -793,8 +796,9 @@ class MainActivity : Activity(), Page.Host {
                         val stats = Stats.parse(JSONObject(answer.json!!))
                         wait = intervalMs
                         show(Link.ONLINE, stats, used, asked = asked)
-                        if (stats.name.isNotEmpty() && stats.name != server.name) {
-                            Servers.update(prefs) { s -> s.byId(server.id)?.let { s.replace(it.named(stats.name)) } ?: s }
+                        if ((stats.name.isNotEmpty() && stats.name != server.name) || stats.os != server.os) {
+                            val name = stats.name.ifEmpty { server.name }
+                            Servers.update(prefs) { s -> s.byId(server.id)?.let { s.replace(it.named(name).running(stats.os)) } ?: s }
                             root.post { applyServers(Servers.load(prefs)) }
                         }
                         val query = configQuery

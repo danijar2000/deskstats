@@ -200,6 +200,7 @@ pub fn net_counters() -> HashMap<String, (u64, u64)> {
 pub fn interfaces() -> Vec<(Ipv4Addr, Ipv4Addr)> {
     const SKIP_ANYCAST_MULTICAST_DNS: u32 = 0x2 | 0x4 | 0x8;
     const ERROR_BUFFER_OVERFLOW: u32 = 111;
+    let cards = net_counters();
     let mut out = Vec::new();
     let mut size: u32 = 16 * 1024;
     for _ in 0..4 {
@@ -220,6 +221,7 @@ pub fn interfaces() -> Vec<(Ipv4Addr, Ipv4Addr)> {
             if a.OperStatus != OPER_STATUS_UP || (a.IfType != IF_TYPE_ETHERNET && a.IfType != IF_TYPE_WIFI) {
                 continue;
             }
+            let card = cards.contains_key(&unsafe { a.Luid.Value }.to_string());
             let mut unicast = a.FirstUnicastAddress;
             while !unicast.is_null() {
                 let u = unsafe { &*unicast };
@@ -231,12 +233,15 @@ pub fn interfaces() -> Vec<(Ipv4Addr, Ipv4Addr)> {
                 // The address is kept in network order, so its bytes in memory are the four numbers as written.
                 let ip = Ipv4Addr::from(unsafe { (*(socket as *const SOCKADDR_IN)).sin_addr.S_un.S_addr }.to_ne_bytes());
                 let mask = u32::MAX << (32 - u.OnLinkPrefixLength as u32);
-                out.push((ip, Ipv4Addr::from(u32::from(ip) | !mask)));
+                out.push((card, (ip, Ipv4Addr::from(u32::from(ip) | !mask))));
             }
         }
         break;
     }
-    out
+    // Hyper-V, WSL and VirtualBox make adapters that look like Ethernet. Only real network cards count, unless
+    // Windows marks none as real (some virtual machines), in which case all of them do.
+    let real = out.iter().any(|(card, _)| *card);
+    out.into_iter().filter(|(card, _)| *card || !real).map(|(_, addresses)| addresses).collect()
 }
 
 pub fn computer_name() -> String {
@@ -387,6 +392,12 @@ pub mod adb {
 
     /// Runs adb with [input] on its standard input; its output when it ended well in time.
     pub fn run(path: &str, _dir: &str, args: &[&str], input: Option<&str>, timeout: Duration) -> Option<String> {
+        // The first adb command starts adb's background server, which on Windows inherits the handles of the
+        // command that started it. If that were the pipe this server reads the output from, the pipe would never
+        // close. So the background server is started first, by a command whose output goes nowhere.
+        if args.first() == Some(&"devices") {
+            crate::util::run_silent(path, &["start-server"], timeout + Duration::from_secs(10));
+        }
         let (ok, out) = crate::util::run_with_input(path, args, input, timeout)?;
         ok.then_some(out)
     }

@@ -15,7 +15,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /** A Mac on the Wi‑Fi that announced itself, paired or not. [id] matches [Server.id] when the phone knows its token. */
-class Nearby(val id: String, val name: String, val model: String, val host: String, val port: Int, val seen: Long) {
+class Nearby(val id: String, val name: String, val model: String, val host: String, val port: Int, val seen: Long, val os: String = "") {
     companion object {
         const val ANNOUNCE = "DESKSTATS3 "
 
@@ -26,7 +26,7 @@ class Nearby(val id: String, val name: String, val model: String, val host: Stri
             val port = o.optInt("port")
             if (o.optString("app") != "deskstats" || id.length != 16 || !id.all { it in '0'..'9' || it in 'a'..'f' } ||
                 port !in 1..65535 || !Settings.isPrivateAddress(host)
-            ) null else Nearby(id, o.optString("name").trim().take(64), o.optString("model").trim().take(64), host, port, System.currentTimeMillis())
+            ) null else Nearby(id, o.optString("name").trim().take(64), o.optString("model").trim().take(64), host, port, System.currentTimeMillis(), o.optString("os").take(16))
         } catch (e: JSONException) {
             null
         }

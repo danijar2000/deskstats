@@ -60,6 +60,25 @@ pub fn run(program: &str, args: &[&str], timeout: Duration) -> Option<(bool, Str
     run_with_input(program, args, None, timeout)
 }
 
+/// Runs a program without reading what it prints; whether it ended well in time. For programs that leave
+/// something running behind them, which would keep a pipe to this server open.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn run_silent(program: &str, args: &[&str], timeout: Duration) -> Option<bool> {
+    let mut child = command(program).args(args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().ok()?;
+    let started = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Some(status.success()),
+            Ok(None) if started.elapsed() < timeout => std::thread::sleep(Duration::from_millis(20)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+        }
+    }
+}
+
 /// Runs a program, optionally with [input] on its standard input; whether it ended well and what it printed.
 /// None when it cannot start or does not end in time, in which case it is killed.
 pub fn run_with_input(program: &str, args: &[&str], input: Option<&str>, timeout: Duration) -> Option<(bool, String)> {
@@ -114,6 +133,15 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn run_silent_reports_the_end() {
+        assert_eq!(run_silent("/bin/echo", &["hi"], Duration::from_secs(5)), Some(true));
+        assert_eq!(run_silent("/usr/bin/false", &[], Duration::from_secs(5)), Some(false));
+        assert_eq!(run_silent("/bin/sleep", &["30"], Duration::from_millis(200)), None);
+        assert_eq!(run_silent("/nonexistent", &[], Duration::from_secs(1)), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn run_returns_output_and_kills_what_hangs() {
         assert_eq!(run_with_input("/bin/cat", &[], Some("in\n"), Duration::from_secs(5)), Some((true, "in\n".into())));
         assert_eq!(run("/bin/echo", &["hi"], Duration::from_secs(5)), Some((true, "hi\n".into())));
@@ -134,6 +162,9 @@ mod tests {
         assert_eq!(run("ping.exe", &["-n", "30", "127.0.0.1"], Duration::from_millis(300)), None);
         assert!(started.elapsed() < Duration::from_secs(5));
         assert_eq!(run("no-such-program-here.exe", &[], Duration::from_secs(1)), None);
+        assert_eq!(run_silent("cmd.exe", &["/C", "echo hi"], Duration::from_secs(10)), Some(true));
+        assert_eq!(run_silent("cmd.exe", &["/C", "exit 3"], Duration::from_secs(10)), Some(false));
+        assert_eq!(run_silent("ping.exe", &["-n", "30", "127.0.0.1"], Duration::from_millis(300)), None);
     }
 
     #[test]

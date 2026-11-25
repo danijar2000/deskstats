@@ -12,7 +12,7 @@ pub fn beacon_text(keys: &Keys, ip: Ipv4Addr, port: u16, time_ms: u64) -> String
 
 /// Who this Mac is, for any phone on the network: what /info answers and what the open announcement carries.
 pub fn about_json(id: &str, name: &str, model: &str, port: u16) -> String {
-    format!("{{\"app\":\"deskstats\",\"id\":\"{id}\",\"name\":\"{}\",\"model\":\"{}\",\"port\":{port}}}", json_escape(name), json_escape(model))
+    format!("{{\"app\":\"deskstats\",\"id\":\"{id}\",\"name\":\"{}\",\"model\":\"{}\",\"os\":\"{}\",\"port\":{port}}}", json_escape(name), json_escape(model), crate::sys::OS)
 }
 
 pub const QUERY: &str = "DESKSTATS?";
@@ -139,7 +139,7 @@ mod tests {
     fn about_is_json() {
         assert_eq!(
             about_json("0011223344556677", "Dan's \"Mac\"", "Mac mini (2024)", 8787),
-            r#"{"app":"deskstats","id":"0011223344556677","name":"Dan's \"Mac\"","model":"Mac mini (2024)","port":8787}"#
+            format!(r#"{{"app":"deskstats","id":"0011223344556677","name":"Dan's \"Mac\"","model":"Mac mini (2024)","os":"{}","port":8787}}"#, crate::sys::OS)
         );
     }
 

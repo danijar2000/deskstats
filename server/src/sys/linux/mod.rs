@@ -85,7 +85,13 @@ pub fn ask(text: &str, deny: &str, allow: &str, wait: Duration) -> bool {
         let mut all: Vec<&str> = environment.iter().map(String::as_str).collect();
         all.push(program);
         all.extend_from_slice(args);
-        crate::util::run("env", &all, limit).is_some_and(|(ok, _)| ok)
+        let started = Instant::now();
+        let allowed = crate::util::run("env", &all, limit).is_some_and(|(ok, _)| ok);
+        // Nobody answers a question within a second: the window never opened.
+        if !allowed && started.elapsed() < Duration::from_secs(1) {
+            crate::util::log(&format!("pair: {program} could not show the question (no display for this service, or an option it does not know)"));
+        }
+        allowed
     };
     if let Some(zenity) = find_in_path("zenity") {
         // zenity reads the text as markup, and the name of the phone comes from the network.
