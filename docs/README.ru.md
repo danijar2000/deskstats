@@ -131,6 +131,14 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 Ключ связи остаётся в `~/Library/Application Support/deskstats` (удалите папку, чтобы Mac забыл
 телефон); записи в разделе «Конфиденциальность и безопасность» можно убрать только вручную.
 
+На Linux сервер удаляет та же команда; на Windows — в PowerShell:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1))) -Uninstall
+```
+
+Ключ связи остаётся в `~/.config/deskstats` на Linux и в `%APPDATA%\deskstats` на Windows.
+
 ## Решение проблем
 
 | Что вы видите | Что делать |

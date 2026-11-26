@@ -61,14 +61,16 @@ pub fn find_in_path(program: &str) -> Option<String> {
 
 /// What a program needs to open a window, as "NAME=value". A service started at login may run before the desktop
 /// is up and so not have these itself; the desktop tells the systemd user manager, which is asked then.
-fn desktop_environment() -> Vec<String> {
+fn desktop_environment() -> (Vec<String>, bool) {
     const NAMES: [&str; 5] = ["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"];
     let own = |name: &str| std::env::var(name).ok().filter(|value| !value.is_empty());
     if own("DISPLAY").is_some() || own("WAYLAND_DISPLAY").is_some() {
-        return Vec::new();
+        return (Vec::new(), true);
     }
     let shown = crate::util::run("systemctl", &["--user", "show-environment"], Duration::from_secs(5)).map(|(_, text)| text).unwrap_or_default();
-    parse_environment(&shown, &NAMES)
+    let found = parse_environment(&shown, &NAMES);
+    let display = found.iter().any(|line| line.starts_with("DISPLAY=") || line.starts_with("WAYLAND_DISPLAY="));
+    (found, display)
 }
 
 pub fn parse_environment(shown: &str, names: &[&str]) -> Vec<String> {
@@ -79,19 +81,16 @@ pub fn parse_environment(shown: &str, names: &[&str]) -> Vec<String> {
 /// Uses zenity (GNOME and most desktops) or kdialog (KDE); without either nobody can be asked, so the answer is no.
 pub fn ask(text: &str, deny: &str, allow: &str, wait: Duration) -> bool {
     let limit = wait + Duration::from_secs(10);
-    let environment = desktop_environment();
+    let (environment, display) = desktop_environment();
+    if !display {
+        crate::util::log("pair: no display is known to this service, so the question may not show");
+    }
     // "env NAME=value… program arguments…" runs the program with these added to its environment.
     let run = |program: &str, args: &[&str]| {
         let mut all: Vec<&str> = environment.iter().map(String::as_str).collect();
         all.push(program);
         all.extend_from_slice(args);
-        let started = Instant::now();
-        let allowed = crate::util::run("env", &all, limit).is_some_and(|(ok, _)| ok);
-        // Nobody answers a question within a second: the window never opened.
-        if !allowed && started.elapsed() < Duration::from_secs(1) {
-            crate::util::log(&format!("pair: {program} could not show the question (no display for this service, or an option it does not know)"));
-        }
-        allowed
+        crate::util::run("env", &all, limit).is_some_and(|(ok, _)| ok)
     };
     if let Some(zenity) = find_in_path("zenity") {
         // zenity reads the text as markup, and the name of the phone comes from the network.
@@ -422,7 +421,9 @@ pub mod adb {
 
     pub fn candidates() -> Vec<String> {
         let home = std::env::var("HOME").unwrap_or_default();
-        let mut list: Vec<String> = super::find_in_path("adb").into_iter().collect();
+        // The installer names the adb it found in the user's shell: the service has another PATH.
+        let mut list: Vec<String> = std::env::var("DESKSTATS_ADB").ok().filter(|path| path.starts_with('/')).into_iter().collect();
+        list.extend(super::find_in_path("adb"));
         list.extend([format!("{home}/Android/Sdk/platform-tools/adb"), String::from("/usr/bin/adb"), String::from("/usr/local/bin/adb")]);
         list
     }

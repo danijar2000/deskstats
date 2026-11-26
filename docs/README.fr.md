@@ -138,6 +138,14 @@ La clé d'appairage reste dans `~/Library/Application Support/deskstats` (suppri
 oublier le téléphone) ; les entrées dans Confidentialité et sécurité ne peuvent y être retirées
 qu'à la main.
 
+Sous Linux, la même commande supprime le serveur ; sous Windows, dans PowerShell :
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1))) -Uninstall
+```
+
+La clé d’appairage reste dans `~/.config/deskstats` sous Linux et dans `%APPDATA%\deskstats` sous Windows.
+
 ## Dépannage
 
 | Ce que vous voyez | Que faire |

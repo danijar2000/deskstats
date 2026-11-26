@@ -115,6 +115,14 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 配对密钥保留在 `~/Library/Application Support/deskstats`（删除该文件夹即可忘记手机）；
 "隐私与安全性"中的条目只能在那里手动移除。
 
+在 Linux 上用同一条命令移除服务端；在 Windows 上，在 PowerShell 中执行：
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1))) -Uninstall
+```
+
+配对密钥在 Linux 上保留在 `~/.config/deskstats`，在 Windows 上保留在 `%APPDATA%\deskstats`。
+
 ## 故障排除
 
 | 你看到的 | 解决方法 |

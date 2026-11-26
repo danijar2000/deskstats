@@ -3,9 +3,14 @@
 #
 #   irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1 | iex
 #
-# To remove it: download this file and run   .\setup.ps1 -Uninstall
+# To remove it:
+#
+#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1))) -Uninstall
 param([switch]$NoPhone, [switch]$Uninstall)
 
+# Everything runs in a scope of its own: "irm | iex" runs this in the window of whoever typed it, and their
+# settings must be as they were afterwards.
+& {
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -41,20 +46,28 @@ function Show-Qr {
             Remove-Item -Force $file -ErrorAction SilentlyContinue
         }
     }
+    Write-Host "Scan the code with the phone's camera (or open the link on the phone), install the app and open it."
+    Write-Host 'With the phone on the same Wi-Fi as this computer, the app finds it: tap it there and allow it here.'
+    Write-Host ''
+    Write-Host "  $link"
     if ($rows.Count -gt 0) {
+        # One character shows two squares, one above the other: its upper half has the colour of the text and
+        # its lower half the colour behind it. So the code is as high as it is wide and fits a window of 30 lines.
+        $half = [string][char]0x2580
         $blank = '0' * $rows[0].Length
-        foreach ($row in @($blank, $blank) + $rows + @($blank, $blank)) {
-            foreach ($square in ("0000$row" + '0000').ToCharArray()) {
-                $colour = if ($square -eq '1') { 'Black' } else { 'White' }
-                Write-Host '  ' -NoNewline -BackgroundColor $colour
+        $all = @($blank, $blank, $blank) + $rows + @($blank, $blank, $blank)
+        if ($all.Count % 2) { $all += $blank }
+        for ($y = 0; $y -lt $all.Count; $y += 2) {
+            $upper = "000$($all[$y])000"
+            $lower = "000$($all[$y + 1])000"
+            for ($x = 0; $x -lt $upper.Length; $x++) {
+                $above = if ($upper[$x] -eq '1') { 'Black' } else { 'White' }
+                $below = if ($lower[$x] -eq '1') { 'Black' } else { 'White' }
+                Write-Host $half -NoNewline -ForegroundColor $above -BackgroundColor $below
             }
             Write-Host ''
         }
     }
-    Write-Host "  $link"
-    Write-Host ''
-    Write-Host "Scan the code with the phone's camera (or open the link on the phone), install the app and open it."
-    Write-Host 'With the phone on the same Wi-Fi as this computer, the app finds it: tap it there and allow it here.'
 }
 
 $work = Join-Path ([IO.Path]::GetTempPath()) ("deskstats-" + [Guid]::NewGuid().ToString('N'))
@@ -83,12 +96,11 @@ try {
     }
     if (-not $adb) {
         Write-Host ''
-        Write-Host 'To put the app on the phone without a cable:'
-        Write-Host ''
-        Show-Qr
-        Write-Host ''
-        Write-Host 'For the USB cable instead, install adb and run setup.ps1 again:'
+        Write-Host 'For the USB cable, install adb and run setup.ps1 again:'
         Write-Host '  winget install Google.PlatformTools'
+        Write-Host ''
+        Write-Host 'To put the app on the phone without a cable:'
+        Show-Qr
         return
     }
     Invoke-Adb $adb @('get-state') | Out-Null
@@ -96,7 +108,6 @@ try {
         Write-Host ''
         Write-Host 'No phone over USB (USB debugging must be on, with one phone connected).'
         Write-Host 'Connect it and run setup.ps1 again, or put the app on the phone without a cable:'
-        Write-Host ''
         Show-Qr
         return
     }
@@ -119,4 +130,5 @@ try {
     Write-Host 'If the server was started before adb was installed, sign out and in again (or run setup.ps1 once more).'
 } finally {
     Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+}
 }

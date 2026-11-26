@@ -133,6 +133,14 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 A chave de pareamento fica em `~/Library/Application Support/deskstats` (apague a pasta para
 esquecer o telefone); as entradas em Privacidade e Segurança só podem ser removidas lá, à mão.
 
+No Linux o mesmo comando remove o servidor; no Windows, no PowerShell:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1))) -Uninstall
+```
+
+A chave de emparelhamento fica em `~/.config/deskstats` no Linux e em `%APPDATA%\deskstats` no Windows.
+
 ## Solução de problemas
 
 | O que você vê | O que fazer |

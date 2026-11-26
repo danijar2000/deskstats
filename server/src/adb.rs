@@ -34,6 +34,12 @@ pub fn parse_devices(out: &str) -> Vec<String> {
     out.lines().filter_map(|line| line.split_once('\t')).filter(|(_, state)| state.trim() == "device").map(|(serial, _)| serial.trim().to_string()).collect()
 }
 
+/// Whether "am start" opened the app: it prints "Error: Activity class … does not exist" while the app is not installed,
+/// and ends well all the same.
+pub fn opened(out: Option<&str>) -> bool {
+    out.is_some_and(|text| !text.contains("Error"))
+}
+
 static USB: (Mutex<bool>, Condvar) = (Mutex::new(false), Condvar::new());
 
 fn usb_changed() {
@@ -63,7 +69,7 @@ pub fn run(path: String, dir: String, shared: Arc<Shared>) {
         let looks: &[u64] = if plugged { &AFTER_PLUG } else { &[0] };
         for wait in looks {
             std::thread::sleep(Duration::from_secs(*wait));
-            let phones: Vec<String> = adb.devices().into_iter().filter(|serial| adb.run(&["-s", serial, "reverse", &port, &port], None).is_some()).collect();
+            let mut phones: Vec<String> = adb.devices().into_iter().filter(|serial| adb.run(&["-s", serial, "reverse", &port, &port], None).is_some()).collect();
             let ok = !phones.is_empty();
             if reachable != Some(ok) {
                 log(if ok { "adb: phone connected" } else { "adb: no phone on USB" });
@@ -71,14 +77,20 @@ pub fn run(path: String, dir: String, shared: Arc<Shared>) {
             reachable = Some(ok);
             // A phone that was just plugged in gets the token once, unless a phone already reads this computer over
             // the cable. Requests over Wi‑Fi do not count: they may come from another phone.
-            let new: Vec<&String> = phones.iter().filter(|serial| !known.contains(serial)).collect();
+            let new: Vec<String> = phones.iter().filter(|serial| !known.contains(serial)).cloned().collect();
+            // A phone whose app is not installed yet (the installer puts it there a moment after it starts this
+            // server) stays new, so that the next look tries again.
+            let mut waiting: Vec<String> = Vec::new();
             if !new.is_empty() && quiet(&shared.last_local_ms) {
                 let script = format!("am start -n {CONFIG_ACTIVITY} --ei port {} --es token {}\n", shared.port, shared.token);
                 for serial in &new {
-                    adb.run(&["-s", serial, "shell"], Some(&script));
+                    if !opened(adb.run(&["-s", serial, "shell"], Some(&script)).as_deref()) {
+                        waiting.push(serial.clone());
+                    }
                 }
             }
-            let settled = !new.is_empty();
+            let settled = !new.is_empty() && waiting.is_empty();
+            phones.retain(|serial| !waiting.contains(serial));
             known = phones;
             if settled {
                 break;
@@ -101,6 +113,13 @@ mod tests {
         let out = "List of devices attached\n52033ae6e27a34c5\tdevice\nemulator-5554\toffline\nR58M\tunauthorized\n10.0.0.5:5555\tdevice\n\n";
         assert_eq!(parse_devices(out), vec!["52033ae6e27a34c5", "10.0.0.5:5555"]);
         assert!(parse_devices("").is_empty());
+    }
+
+    #[test]
+    fn a_missing_app_is_noticed() {
+        assert!(opened(Some("Starting: Intent { cmp=app.deskstats/.ConfigActivity (has extras) }\n")));
+        assert!(!opened(Some("Starting: Intent { cmp=app.deskstats/.ConfigActivity }\nError type 3\nError: Activity class {app.deskstats/app.deskstats.ConfigActivity} does not exist.\n")));
+        assert!(!opened(None));
     }
 
     #[cfg(unix)]

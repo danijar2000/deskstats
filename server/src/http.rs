@@ -268,7 +268,7 @@ pub fn respond(request: &Request, shared: &Shared, local: bool) -> Reply {
     }
     if request.path == "/q" {
         if !local && !shared.settings.lan.load(Ordering::Relaxed) {
-            return refuse("403 Forbidden", "wifi is off on this Mac");
+            return refuse("403 Forbidden", "wifi is off on this computer");
         }
         let mut plain = String::new();
         let Some((nonce, target)) = unseal(request.query, &shared.keys, &mut plain) else {

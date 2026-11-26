@@ -55,7 +55,8 @@ if (-not (Get-Process -Name deskstats -ErrorAction SilentlyContinue | Where-Obje
 
 Write-Host 'deskstats is running and starts at sign-in.'
 Write-Host ''
-Write-Host 'When Windows asks whether to let deskstats through the firewall, allow it on private networks:'
+Write-Host 'When Windows asks whether to let deskstats through the firewall, allow it for the kind of network'
+Write-Host 'this Wi-Fi is (Windows often calls a home Wi-Fi public; tick both kinds when unsure):'
 Write-Host 'the phone reaches this computer over Wi-Fi on TCP 8787 and UDP 8788.'
 Write-Host 'The USB cable is optional: for it, install adb (winget install Google.PlatformTools) and run this again.'
 Write-Host "The log is in $data\log.txt."
