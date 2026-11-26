@@ -84,10 +84,10 @@ pub fn log_line(line: &str) {
     }
 }
 
-/// The full path of a program found through PATH.
+/// The full path of a program found through PATH; a folder may stand in quotes there.
 pub fn find_in_path(program: &str) -> Option<String> {
     let path = std::env::var("PATH").unwrap_or_default();
-    path.split(';').filter(|dir| !dir.is_empty()).map(|dir| format!("{}\\{program}", dir.trim_end_matches('\\'))).find(|file| std::path::Path::new(file).is_file())
+    path.split(';').map(|dir| dir.trim().trim_matches('"')).filter(|dir| !dir.is_empty()).map(|dir| format!("{}\\{program}", dir.trim_end_matches('\\'))).find(|file| std::path::Path::new(file).is_file())
 }
 
 #[link(name = "user32")]

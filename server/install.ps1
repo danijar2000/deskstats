@@ -10,11 +10,21 @@ $exe = Join-Path $dir 'deskstats.exe'
 $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $data = Join-Path $env:APPDATA 'deskstats'
 
+function Get-Server {
+    Get-Process -Name deskstats -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe }
+}
+
 function Stop-Server {
-    $running = Get-Process -Name deskstats -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe }
+    $running = Get-Server
     if ($running) {
         $running | Stop-Process -Force
         $running | Wait-Process -Timeout 20 -ErrorAction SilentlyContinue
+    }
+    # A server started as administrator hides its path from an ordinary window and cannot be stopped from it.
+    $session = (Get-Process -Id $PID).SessionId
+    $hidden = Get-Process -Name deskstats -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -eq $session -and -not $_.Path }
+    if ($hidden) {
+        throw 'install.ps1: deskstats is running as administrator and cannot be stopped from here; run this from PowerShell opened as administrator, or sign out and in and run it again'
     }
 }
 
@@ -46,10 +56,18 @@ Copy-Item -Force $built $exe
 # A fresh Windows profile may not have the key of the programs that start at sign-in yet.
 if (-not (Test-Path $run)) { New-Item -Path $run -Force | Out-Null }
 Set-ItemProperty -Path $run -Name deskstats -Value "`"$exe`""
-Start-Process -FilePath $exe -WorkingDirectory $dir
+
+# From PowerShell opened as administrator the server would run as administrator until the next sign-in, out of
+# reach of an ordinary window. Explorer starts it with the rights of the desktop instead.
+$admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if ($admin) {
+    try { Start-Process -FilePath (Join-Path $env:WINDIR 'explorer.exe') -ArgumentList "`"$exe`"" } catch { }
+    for ($i = 0; $i -lt 10 -and -not (Get-Server); $i++) { Start-Sleep -Milliseconds 500 }
+}
+if (-not (Get-Server)) { Start-Process -FilePath $exe -WorkingDirectory $dir }
 
 Start-Sleep -Seconds 2
-if (-not (Get-Process -Name deskstats -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe })) {
+if (-not (Get-Server)) {
     throw "install.ps1: the server did not start; see $data\log.txt"
 }
 

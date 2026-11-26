@@ -99,10 +99,16 @@ pub fn ask(text: &str, deny: &str, allow: &str, wait: Duration) -> bool {
         return run(&zenity, &["--question", "--title", "Deskstats", "--text", &plain, "--ok-label", allow, "--cancel-label", deny, "--default-cancel", "--timeout", &seconds]);
     }
     if let Some(kdialog) = find_in_path("kdialog") {
-        return run(&kdialog, &["--title", "Deskstats", "--warningyesno", text, "--yes-label", allow, "--no-label", deny]);
+        return run(&kdialog, &["--title", "Deskstats", "--warningyesno", &without_markup(text), "--yes-label", allow, "--no-label", deny]);
     }
     crate::util::log("pair: cannot ask whether to let the phone in; install zenity or kdialog");
     false
+}
+
+/// kdialog decides by the look of the text whether it is markup, and the name of the phone comes from the network:
+/// a name with tags could hide the code. Without these three characters nothing in the text can be a tag.
+pub fn without_markup(text: &str) -> String {
+    text.chars().map(|c| match c { '<' => '‹', '>' => '›', '&' => '＆', other => other }).collect()
 }
 
 /// Notifications of other programs are not read on Linux: the answer simply has no "alerts".
@@ -467,6 +473,11 @@ pub mod adb {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_name_cannot_be_markup() {
+        assert_eq!(without_markup("<b><!-- A&B\ncode 123456"), "‹b›‹!-- A＆B\ncode 123456");
+    }
 
     #[test]
     fn stat_lines_become_busy_and_total() {
