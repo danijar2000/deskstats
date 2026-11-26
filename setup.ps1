@@ -51,21 +51,40 @@ function Show-Qr {
     Write-Host ''
     Write-Host "  $link"
     if ($rows.Count -gt 0) {
-        # One character shows two squares, one above the other: its upper half has the colour of the text and
-        # its lower half the colour behind it. So the code is as high as it is wide and fits a window of 30 lines.
-        $half = [string][char]0x2580
         $blank = '0' * $rows[0].Length
         $all = @($blank, $blank, $blank) + $rows + @($blank, $blank, $blank)
         if ($all.Count % 2) { $all += $blank }
-        for ($y = 0; $y -lt $all.Count; $y += 2) {
-            $upper = "000$($all[$y])000"
-            $lower = "000$($all[$y + 1])000"
-            for ($x = 0; $x -lt $upper.Length; $x++) {
-                $above = if ($upper[$x] -eq '1') { 'Black' } else { 'White' }
-                $below = if ($lower[$x] -eq '1') { 'Black' } else { 'White' }
-                Write-Host $half -NoNewline -ForegroundColor $above -BackgroundColor $below
+        # One character shows two squares, one above the other: its upper half has the colour of the text and
+        # its lower half the colour behind it. So the code is as high as it is wide and fits a window of 30 lines.
+        # Some East Asian consoles draw that character two cells wide; the cursor tells, and then every square
+        # is two spaces instead.
+        $half = [string][char]0x2580
+        $narrow = $true
+        try {
+            $at = [Console]::CursorLeft
+            Write-Host $half -NoNewline
+            $narrow = ([Console]::CursorLeft - $at) -ne 2
+            Write-Host "`r  `r" -NoNewline
+        } catch { }
+        if ($narrow) {
+            for ($y = 0; $y -lt $all.Count; $y += 2) {
+                $upper = "000$($all[$y])000"
+                $lower = "000$($all[$y + 1])000"
+                for ($x = 0; $x -lt $upper.Length; $x++) {
+                    $above = if ($upper[$x] -eq '1') { 'Black' } else { 'White' }
+                    $below = if ($lower[$x] -eq '1') { 'Black' } else { 'White' }
+                    Write-Host $half -NoNewline -ForegroundColor $above -BackgroundColor $below
+                }
+                Write-Host ''
             }
-            Write-Host ''
+        } else {
+            foreach ($row in $all) {
+                foreach ($square in "000${row}000".ToCharArray()) {
+                    $colour = if ($square -eq '1') { 'Black' } else { 'White' }
+                    Write-Host '  ' -NoNewline -BackgroundColor $colour
+                }
+                Write-Host ''
+            }
         }
     }
 }
