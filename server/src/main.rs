@@ -26,6 +26,11 @@ use std::time::{Duration, Instant};
 use util::{json_escape, log, now_ms};
 
 const PORT: u16 = 8787;
+/// The release this was built for (the workflow passes the tag); a build by hand has the version of the crate.
+pub const VERSION: &str = match option_env!("DESKSTATS_VERSION") {
+    Some(version) if !version.is_empty() => version,
+    _ => env!("CARGO_PKG_VERSION"),
+};
 
 type Counters = (Vec<(u64, u64)>, std::collections::HashMap<String, (u64, u64)>, Instant);
 
@@ -155,6 +160,7 @@ fn main() {
     spawn("weather", move || weather::run(weather));
     match adb::find() {
         Some(path) => {
+            shared.adb.store(true, Ordering::Relaxed);
             let shared = shared.clone();
             spawn("adb", move || adb::run(path, data_dir(), shared));
         }

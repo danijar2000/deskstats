@@ -42,6 +42,8 @@ pub struct Shared {
     pub procs: Tracker,
     pub last_request_ms: AtomicU64,
     pub last_local_ms: AtomicU64,
+    /// Whether adb was found when the server started, for the window on this computer.
+    pub adb: std::sync::atomic::AtomicBool,
     pub token: String,
     pub keys: Keys,
     pub port: u16,
@@ -67,6 +69,7 @@ impl Shared {
             procs: Tracker::default(),
             last_request_ms: AtomicU64::new(0),
             last_local_ms: AtomicU64::new(0),
+            adb: std::sync::atomic::AtomicBool::new(false),
             token,
             keys,
             port,
@@ -215,6 +218,10 @@ fn answer(target: &str, shared: &Shared, local: bool) -> (u16, String) {
         shared.weather.set_every(Duration::from_secs(shared.settings.weather_min.load(Ordering::Relaxed) * 60));
         return (200, shared.settings.json());
     }
+    if path == "/status" {
+        // For the window on this computer only: it must not wake the sampler the way a phone does.
+        return if local { (200, status_json(shared)) } else { (404, error_json("not found")) };
+    }
     if path != "/stats" && path != "/procs" {
         return (404, error_json("not found"));
     }
@@ -243,6 +250,22 @@ fn answer(target: &str, shared: &Shared, local: bool) -> (u16, String) {
     };
     crate::power::LAST_POLL_MS.store(now_ms(), Ordering::Relaxed);
     (200, json)
+}
+
+/// What the window on this computer shows: who the server says it is, where phones reach it and when one last asked.
+fn status_json(shared: &Shared) -> String {
+    let ips: Vec<String> = crate::sys::interfaces().iter().map(|(ip, _)| format!("\"{ip}\"")).collect();
+    let last = shared.last_request_ms.load(Ordering::Relaxed);
+    let ago = if last == 0 { String::from("null") } else { now_ms().saturating_sub(last).to_string() };
+    format!(
+        "{{\"version\":\"{}\",\"about\":{},\"ips\":[{}],\"wifi\":{},\"adb\":{},\"phone_ago_ms\":{ago},\"state\":\"{}\"}}",
+        crate::VERSION,
+        shared.about,
+        ips.join(","),
+        shared.settings.lan.load(Ordering::Relaxed),
+        shared.adb.load(Ordering::Relaxed),
+        crate::power::state(),
+    )
 }
 
 fn unseal<'a>(query: &str, keys: &Keys, plain: &'a mut String) -> Option<(&'a str, &'a str)> {
@@ -482,6 +505,19 @@ mod tests {
         assert_eq!(ask(&format!("GET /x HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{AUTH}"), &s, true), "404 Not Found");
         assert_eq!(ask(&format!("GET /stats HTTP/1.1\r\nHost: 192.168.1.5:8787\r\n{AUTH}"), &s, false), "401 Unauthorized");
         assert_eq!(ask(&format!("GET /procs HTTP/1.1\r\nHost: 192.168.1.5:8787\r\n{AUTH}"), &s, false), "401 Unauthorized");
+    }
+
+    #[test]
+    fn the_window_on_this_computer_gets_the_status_and_a_phone_does_not() {
+        let s = shared();
+        let reply = respond(&parse(format!("GET /status HTTP/1.1\r\nHost: 127.0.0.1:8787\r\n{AUTH}").as_bytes()).unwrap(), &s, true);
+        let body = String::from_utf8(reply.body).unwrap();
+        assert_eq!(reply.status, "200 OK");
+        assert!(body.starts_with("{\"version\":\"") && body.contains("\"ips\":[") && body.contains("\"phone_ago_ms\":null"), "{body}");
+        // Asking for the status is not a phone asking for numbers: the sampler keeps sleeping.
+        assert_eq!(s.last_request_ms.load(Ordering::Relaxed), 0);
+        let reply = respond(&parse(sealed(&s, "/status").as_bytes()).unwrap(), &s, false);
+        assert_eq!(opened(&s, &reply.body).0, "404");
     }
 
     #[test]

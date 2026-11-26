@@ -313,6 +313,8 @@ mod tests {
     }
 
     /// The whole code for the link to the app, compared with one made by the python-qrcode library.
+    /// The window of deskstats (ui/) builds this file too, without the hashing of the server.
+    #[cfg(not(deskstats_ui))]
     #[test]
     fn the_link_matches_a_reference_encoder() {
         let qr = Qr::encode("https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk").unwrap();

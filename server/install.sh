@@ -14,6 +14,20 @@ data="$HOME/Library/Application Support/deskstats"
 old_logs=("$HOME/Library/Logs/deskstats.log" "$HOME/Library/Logs/deskstats-ax.log")
 domain="gui/$(id -u)"
 identity="${DESKSTATS_SIGN_IDENTITY:--}"
+# The window and the icon in the menu bar: an application of its own, so that the server's permissions stay as they are.
+panel_label="app.deskstats.panel"
+panel_plist="$HOME/Library/LaunchAgents/$panel_label.plist"
+panel="$HOME/Applications/Deskstats Panel.app"
+
+unload_panel() {
+  launchctl bootout "$domain/$panel_label" 2>/dev/null || true
+  for _ in $(seq 50); do
+    launchctl print "$domain/$panel_label" >/dev/null 2>&1 || break
+    sleep 0.1
+  done
+  # The window may be open by itself, outside the agent.
+  pkill -f "$panel/Contents/MacOS/" 2>/dev/null || true
+}
 
 unload() {
   launchctl bootout "$domain/$label" 2>/dev/null || true
@@ -30,8 +44,9 @@ case "${1:-}" in
   "") ;;
   --uninstall)
     unload || { echo "install.sh: the server does not stop; try again in a moment" >&2; exit 1; }
-    rm -f "$plist" "$plist.new" "${old_logs[@]}" "$data/installed-build"
-    rm -rf "$app" "$stage"
+    unload_panel
+    rm -f "$plist" "$plist.new" "$panel_plist" "${old_logs[@]}" "$data/installed-build"
+    rm -rf "$app" "$stage" "$panel"
     echo "deskstats removed."
     echo "Left in place: the pairing key in $data (delete the folder to forget the phone)"
     echo "and the Deskstats entries in System Settings > Privacy & Security."
@@ -46,9 +61,15 @@ esac
 if [ -f Cargo.toml ]; then
   cargo build --release
   built=target/release/deskstats
+  built_ui=""
+  if [ -f ../ui/Cargo.toml ]; then
+    (cd ../ui && cargo build --release)
+    built_ui=../ui/target/release/deskstats-ui
+  fi
   version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
 else
   built=./deskstats
+  built_ui=./deskstats-ui
   version="$(cat VERSION 2>/dev/null || true)"
 fi
 if [ -z "$version" ] || [ ! -x "$built" ]; then
@@ -149,7 +170,55 @@ if [ "$running" = 0 ]; then
   exit 1
 fi
 
+# The panel: replaced every time, it holds no permissions.
+if [ -n "$built_ui" ] && [ -x "$built_ui" ]; then
+  unload_panel
+  rm -rf "$panel"
+  mkdir -p "$panel/Contents/MacOS" "$panel/Contents/Resources"
+  cp "$built_ui" "$panel/Contents/MacOS/deskstats-ui"
+  cp icon/AppIcon.icns "$panel/Contents/Resources/AppIcon.icns"
+  cat > "$panel/Contents/Info.plist" <<INFO
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleIdentifier</key><string>$panel_label</string>
+  <key>CFBundleName</key><string>Deskstats Panel</string>
+  <key>CFBundleDisplayName</key><string>Deskstats Panel</string>
+  <key>CFBundleExecutable</key><string>deskstats-ui</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleShortVersionString</key><string>$version</string>
+  <key>CFBundleVersion</key><string>$version</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+</dict></plist>
+INFO
+  plutil -lint "$panel/Contents/Info.plist" >/dev/null
+  codesign --force --sign "$identity" --identifier "$panel_label" "$panel" 2>/dev/null || codesign --force --sign - --identifier "$panel_label" "$panel"
+  cat > "$panel_plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>$panel_label</string>
+  <key>ProgramArguments</key><array>
+    <string>$panel/Contents/MacOS/deskstats-ui</string>
+    <string>--tray</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>ProcessType</key><string>Interactive</string>
+</dict></plist>
+PLIST
+  plutil -lint "$panel_plist" >/dev/null
+  launchctl bootstrap "$domain" "$panel_plist" || echo "install.sh: the icon in the menu bar did not start; open Deskstats Panel by hand" >&2
+fi
+
 echo "deskstats is running and starts at login."
+if [ -d "$panel" ]; then
+  echo "Its icon is in the menu bar; the window is also in ~/Applications as Deskstats Panel."
+fi
 if [ "$same_bundle" = 0 ]; then
   echo
   echo "In System Settings > Privacy & Security allow Deskstats ($app):"

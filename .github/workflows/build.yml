@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # The version the window and the server show: the tag of a release, the crate's own version otherwise.
+  DESKSTATS_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+
 jobs:
   server:
     runs-on: macos-latest
@@ -28,6 +32,24 @@ jobs:
         run: |
           cargo build --release --target aarch64-apple-darwin
           cargo build --release --target x86_64-apple-darwin
+      - name: Window
+        working-directory: ui
+        run: |
+          cargo test
+          cargo clippy --release --all-targets -- -D warnings
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+      # Pictures of the window as it looks here, to compare with Linux and Windows.
+      - name: Window pictures
+        run: |
+          mkdir -p pictures
+          ui/target/aarch64-apple-darwin/release/deskstats-ui --snapshot pictures/macos-dark.png dark
+          ui/target/aarch64-apple-darwin/release/deskstats-ui --snapshot pictures/macos-light.png light
+          test -s pictures/macos-dark.png && test -s pictures/macos-light.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pictures-macos
+          path: pictures
       - name: Package
         run: |
           dir=deskstats-server
@@ -38,7 +60,10 @@ jobs:
           cp server/install.sh "$dir/"
           cp server/icon/AppIcon.icns "$dir/icon/"
           sed -n 's/^version = "\(.*\)"/\1/p' server/Cargo.toml | head -1 > "$dir/VERSION"
-          lipo -info "$dir/deskstats"
+          lipo -create -output "$dir/deskstats-ui" \
+            ui/target/aarch64-apple-darwin/release/deskstats-ui \
+            ui/target/x86_64-apple-darwin/release/deskstats-ui
+          lipo -info "$dir/deskstats" "$dir/deskstats-ui"
           tar -czf deskstats-server-macos.tar.gz "$dir"
       - uses: actions/upload-artifact@v4
         with:
@@ -50,8 +75,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { runner: ubuntu-latest, arch: x86_64 }
-          - { runner: ubuntu-24.04-arm, arch: aarch64 }
+          # The window links against the C library of the system, so it is built on an older one to run on more.
+          - { runner: ubuntu-22.04, arch: x86_64 }
+          - { runner: ubuntu-22.04-arm, arch: aarch64 }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -93,11 +119,34 @@ jobs:
           for _ in 1 2 3 4 5 6 7 8; do pidof deskstats > /dev/null || break; sleep 1; done
           cat server.log
           if pidof deskstats; then echo 'still running after SIGTERM'; exit 1; fi
+      - name: Window
+        working-directory: ui
+        run: |
+          cargo test
+          cargo clippy --release --all-targets -- -D warnings
+          cargo build --release
+      # Drawn in software by Mesa on a virtual screen, like in a virtual machine without a graphics card.
+      - name: Window picture
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libxkbcommon-x11-0 > /dev/null
+          server/target/${{ matrix.arch }}-unknown-linux-musl/release/deskstats 2> server.log &
+          sleep 2
+          mkdir -p pictures
+          xvfb-run -a -s '-screen 0 1280x1024x24' ui/target/release/deskstats-ui --snapshot pictures/linux-${{ matrix.arch }}-dark.png dark
+          xvfb-run -a -s '-screen 0 1280x1024x24' ui/target/release/deskstats-ui --snapshot pictures/linux-${{ matrix.arch }}-light.png light
+          kill -TERM "$(pidof deskstats)" || true
+          test -s pictures/linux-${{ matrix.arch }}-dark.png
+          ldd ui/target/release/deskstats-ui
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pictures-linux-${{ matrix.arch }}
+          path: pictures
       - name: Package
         run: |
           dir=deskstats-server
           mkdir -p "$dir"
           cp server/target/${{ matrix.arch }}-unknown-linux-musl/release/deskstats "$dir/"
+          cp ui/target/release/deskstats-ui "$dir/"
           cp server/install-linux.sh "$dir/install.sh"
           sed -n 's/^version = "\(.*\)"/\1/p' server/Cargo.toml | head -1 > "$dir/VERSION"
           tar -czf deskstats-server-linux-${{ matrix.arch }}.tar.gz "$dir"
@@ -119,11 +168,18 @@ jobs:
       - name: Build
         working-directory: server
         run: cargo build --release
+      - name: Window
+        working-directory: ui
+        run: |
+          cargo test
+          cargo clippy --release --all-targets -- -D warnings
+          cargo build --release
       - name: Package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force deskstats-server | Out-Null
           Copy-Item server/target/release/deskstats.exe deskstats-server/
+          Copy-Item ui/target/release/deskstats-ui.exe deskstats-server/
           Copy-Item server/install.ps1 deskstats-server/
           Compress-Archive -Path deskstats-server -DestinationPath deskstats-server-windows-x86_64.zip
       - name: PowerShell scripts parse
@@ -161,10 +217,27 @@ jobs:
           $procs.Substring(0, [Math]::Min(300, $procs.Length))
           if ($procs -notmatch '"sort":"ram","total":[1-9][0-9]*,"procs":\[\{"name":"') { throw 'no /procs' }
           Get-Content "$env:APPDATA\deskstats\log.txt"
+          if (-not (Test-Path "$env:LOCALAPPDATA\deskstats\deskstats-ui.exe")) { throw 'no window installed' }
+          if (-not (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name deskstats-tray)) { throw 'the icon does not start at sign-in' }
+          if (-not (Test-Path (Join-Path ([Environment]::GetFolderPath('Programs')) 'Deskstats.lnk'))) { throw 'not in the Start menu' }
+          # The installer opened the window through Explorer (this runner is an administrator); it is closed first.
+          Start-Sleep -Seconds 2
+          Get-Process -Name deskstats-ui -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 1
+          New-Item -ItemType Directory -Force pictures | Out-Null
+          Start-Process -FilePath "$env:LOCALAPPDATA\deskstats\deskstats-ui.exe" -ArgumentList '--snapshot', "$PWD\pictures\windows-dark.png", 'dark' -Wait
+          Start-Process -FilePath "$env:LOCALAPPDATA\deskstats\deskstats-ui.exe" -ArgumentList '--snapshot', "$PWD\pictures\windows-light.png", 'light' -Wait
+          if (-not (Test-Path pictures\windows-dark.png)) { throw 'the window could not be drawn' }
           powershell -NoProfile -ExecutionPolicy Bypass -File deskstats-server/install.ps1 -Uninstall
           if (Get-Process -Name deskstats -ErrorAction SilentlyContinue) { throw 'still running after uninstall' }
           if (Test-Path "$env:LOCALAPPDATA\deskstats\deskstats.exe") { throw 'not removed' }
           if (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name deskstats -ErrorAction SilentlyContinue) { throw 'still starts at sign-in' }
+          if (Get-Process -Name deskstats-ui -ErrorAction SilentlyContinue) { throw 'the window or icon still runs after uninstall' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pictures-windows
+          path: pictures
       - uses: actions/upload-artifact@v4
         with:
           name: deskstats-server-windows-x86_64
@@ -198,6 +271,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: deskstats-*
           merge-multiple: true
       - name: Publish
         env:

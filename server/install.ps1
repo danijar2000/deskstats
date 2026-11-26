@@ -9,6 +9,17 @@ $dir = Join-Path $env:LOCALAPPDATA 'deskstats'
 $exe = Join-Path $dir 'deskstats.exe'
 $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $data = Join-Path $env:APPDATA 'deskstats'
+# The window and the icon by the clock.
+$ui = Join-Path $dir 'deskstats-ui.exe'
+$shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Deskstats.lnk'
+
+function Stop-Panel {
+    $open = Get-Process -Name deskstats-ui -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $ui }
+    if ($open) {
+        $open | Stop-Process -Force
+        $open | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+    }
+}
 
 function Get-Server {
     Get-Process -Name deskstats -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe }
@@ -30,7 +41,10 @@ function Stop-Server {
 
 if ($Uninstall) {
     Stop-Server
+    Stop-Panel
     Remove-ItemProperty -Path $run -Name deskstats -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $run -Name deskstats-tray -ErrorAction SilentlyContinue
+    Remove-Item -Force $shortcut -ErrorAction SilentlyContinue
     if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
     Write-Host 'deskstats removed.'
     Write-Host "Left in place: the pairing key in $data (delete the folder to forget the phone)."
@@ -45,14 +59,28 @@ if (Test-Path (Join-Path $here 'Cargo.toml')) {
         if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
     } finally { Pop-Location }
     $built = Join-Path $here 'target\release\deskstats.exe'
+    $builtUi = $null
+    $uiCrate = Join-Path (Split-Path -Parent $here) 'ui'
+    if (Test-Path (Join-Path $uiCrate 'Cargo.toml')) {
+        Push-Location $uiCrate
+        try {
+            cargo build --release
+            if ($LASTEXITCODE -ne 0) { throw 'cargo build of the window failed' }
+        } finally { Pop-Location }
+        $builtUi = Join-Path $uiCrate 'target\release\deskstats-ui.exe'
+    }
 } else {
     $built = Join-Path $here 'deskstats.exe'
+    $builtUi = Join-Path $here 'deskstats-ui.exe'
 }
 if (-not (Test-Path $built)) { throw "install.ps1: no program to install ($built)" }
 
 Stop-Server
+Stop-Panel
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
 Copy-Item -Force $built $exe
+$panel = $builtUi -and (Test-Path $builtUi)
+if ($panel) { Copy-Item -Force $builtUi $ui }
 # A fresh Windows profile may not have the key of the programs that start at sign-in yet.
 if (-not (Test-Path $run)) { New-Item -Path $run -Force | Out-Null }
 Set-ItemProperty -Path $run -Name deskstats -Value "`"$exe`""
@@ -71,7 +99,29 @@ if (-not (Get-Server)) {
     throw "install.ps1: the server did not start; see $data\log.txt"
 }
 
+if ($panel) {
+    Set-ItemProperty -Path $run -Name deskstats-tray -Value "`"$ui`" --tray"
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        $link = $shell.CreateShortcut($shortcut)
+        $link.TargetPath = $ui
+        $link.WorkingDirectory = $dir
+        $link.Description = 'Deskstats'
+        $link.Save()
+    } catch {
+        Write-Host "Could not add Deskstats to the Start menu: $($_.Exception.Message)"
+    }
+    # Like the server: through Explorer when this window runs as administrator, so that it runs as the user.
+    if ($admin) {
+        try { Start-Process -FilePath (Join-Path $env:WINDIR 'explorer.exe') -ArgumentList "`"$ui`"" } catch { }
+        # Explorer opens the window; the icon is started from the key at the next sign-in.
+    } else {
+        Start-Process -FilePath $ui -ArgumentList '--tray' -WorkingDirectory $dir
+    }
+}
+
 Write-Host 'deskstats is running and starts at sign-in.'
+if ($panel) { Write-Host 'Its icon is by the clock (it may sit under the ^ arrow there); Deskstats is in the Start menu too.' }
 Write-Host ''
 Write-Host 'When Windows asks whether to let deskstats through the firewall, allow it for the kind of network'
 Write-Host 'this Wi-Fi is (Windows often calls a home Wi-Fi public; tick both kinds when unsure):'
