@@ -67,7 +67,7 @@ pub fn run_beacon(keys: Keys, port: u16, about: String, settings: std::sync::Arc
     for wait in [0, 2, 5] {
         std::thread::sleep(Duration::from_secs(wait));
         if !broadcast(&keys, &about, port, signed()) {
-            log("wifi: cannot announce this Mac (no network?)");
+            log("wifi: cannot announce this computer (no network?)");
         }
     }
     let mut limit = Limit::default();

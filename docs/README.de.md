@@ -137,6 +137,14 @@ Der Kopplungsschlüssel bleibt in `~/Library/Application Support/deskstats` (lö
 um das Telefon zu vergessen); die Einträge unter Datenschutz & Sicherheit lassen sich nur dort
 von Hand entfernen.
 
+Unter Linux entfernt derselbe Befehl den Server; unter Windows in PowerShell:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1))) -Uninstall
+```
+
+Der Kopplungsschlüssel bleibt unter Linux in `~/.config/deskstats` und unter Windows in `%APPDATA%\deskstats`.
+
 ## Fehlerbehebung
 
 | Was du siehst | Was zu tun ist |

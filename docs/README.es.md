@@ -133,6 +133,14 @@ La clave de emparejamiento se queda en `~/Library/Application Support/deskstats`
 carpeta para olvidar el teléfono); las entradas de Privacidad y seguridad solo se pueden quitar
 allí a mano.
 
+En Linux el mismo comando quita el servidor; en Windows, en PowerShell:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1))) -Uninstall
+```
+
+La clave de emparejamiento queda en `~/.config/deskstats` en Linux y en `%APPDATA%\deskstats` en Windows.
+
 ## Solución de problemas
 
 | Qué ves | Qué hacer |

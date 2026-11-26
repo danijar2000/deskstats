@@ -124,6 +124,14 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 ペアリング用の鍵は `~/Library/Application Support/deskstats` に残ります（スマートフォンの登録を消すにはこの
 フォルダを削除してください）。「プライバシーとセキュリティ」の項目は、そこで手動でしか削除できません。
 
+Linux では同じコマンドでサーバーを削除できます。Windows では PowerShell で次を実行します。
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1))) -Uninstall
+```
+
+ペアリングキーは Linux では `~/.config/deskstats`、Windows では `%APPDATA%\deskstats` に残ります。
+
 ## トラブルシューティング
 
 | 表示 | 対処 |

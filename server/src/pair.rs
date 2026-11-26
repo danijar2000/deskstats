@@ -119,6 +119,7 @@ impl Pairing {
 /// Asks the user of this computer in a dialog; true only for a click on Allow.
 pub fn ask_user(phone: &str, code: &str, language: &str) -> bool {
     let (message, deny, allow) = words(language);
+    let message = message.replace("{what}", what(language, cfg!(target_os = "macos")));
     let spaced = format!("{} {}", &code[..3], &code[3..]);
     let text = message.replace("{phone}", phone).replace("{code}", &spaced);
     let allowed = crate::sys::ask(&text, deny, allow, DIALOG);
@@ -126,16 +127,38 @@ pub fn ask_user(phone: &str, code: &str, language: &str) -> bool {
     allowed
 }
 
+/// What the phone gets to see: notifications are read on a Mac only.
+fn what(language: &str, notifications: bool) -> &'static str {
+    match (language, notifications) {
+        ("ru", true) => "статистику и уведомления",
+        ("ru", false) => "статистику",
+        ("de", true) => "die Werte und Mitteilungen",
+        ("de", false) => "die Werte",
+        ("es", true) => "los datos y las notificaciones",
+        ("es", false) => "los datos",
+        ("fr", true) => "les données et les notifications",
+        ("fr", false) => "les données",
+        ("pt", true) => "os dados e as notificações",
+        ("pt", false) => "os dados",
+        ("zh", true) => "状态和通知",
+        ("zh", false) => "状态",
+        ("ja", true) => "状態と通知",
+        ("ja", false) => "状態",
+        (_, true) => "stats and notifications",
+        (_, false) => "stats",
+    }
+}
+
 fn words(language: &str) -> (&'static str, &'static str, &'static str) {
     match language {
-        "ru" => ("Телефон «{phone}» хочет показывать статистику и уведомления этого Mac.\n\nКод: {code}\n\nРазрешайте, только если на телефоне тот же код.", "Запретить", "Разрешить"),
-        "de" => ("Das Telefon „{phone}“ möchte die Werte und Mitteilungen dieses Mac anzeigen.\n\nCode: {code}\n\nNur erlauben, wenn das Telefon denselben Code zeigt.", "Ablehnen", "Erlauben"),
-        "es" => ("El teléfono «{phone}» quiere mostrar los datos y las notificaciones de este Mac.\n\nCódigo: {code}\n\nPermítelo solo si el teléfono muestra el mismo código.", "Rechazar", "Permitir"),
-        "fr" => ("Le téléphone « {phone} » veut afficher les données et les notifications de ce Mac.\n\nCode : {code}\n\nN’autorisez que si le téléphone affiche le même code.", "Refuser", "Autoriser"),
-        "pt" => ("O telefone “{phone}” quer mostrar os dados e as notificações deste Mac.\n\nCódigo: {code}\n\nPermita apenas se o telefone mostrar o mesmo código.", "Recusar", "Permitir"),
-        "zh" => ("手机“{phone}”想要显示这台 Mac 的状态和通知。\n\n代码：{code}\n\n只有手机上显示相同的代码时才允许。", "拒绝", "允许"),
-        "ja" => ("スマートフォン「{phone}」がこの Mac の状態と通知を表示しようとしています。\n\nコード：{code}\n\nスマートフォンに同じコードが表示されている場合のみ許可してください。", "拒否", "許可"),
-        _ => ("The phone “{phone}” wants to show this Mac’s stats and notifications.\n\nCode: {code}\n\nAllow only if the phone shows the same code.", "Deny", "Allow"),
+        "ru" => ("Телефон «{phone}» хочет показывать {what} этого компьютера.\n\nКод: {code}\n\nРазрешайте, только если на телефоне тот же код.", "Запретить", "Разрешить"),
+        "de" => ("Das Telefon „{phone}“ möchte {what} dieses Computers anzeigen.\n\nCode: {code}\n\nNur erlauben, wenn das Telefon denselben Code zeigt.", "Ablehnen", "Erlauben"),
+        "es" => ("El teléfono «{phone}» quiere mostrar {what} de este ordenador.\n\nCódigo: {code}\n\nPermítelo solo si el teléfono muestra el mismo código.", "Rechazar", "Permitir"),
+        "fr" => ("Le téléphone « {phone} » veut afficher {what} de cet ordinateur.\n\nCode : {code}\n\nN’autorisez que si le téléphone affiche le même code.", "Refuser", "Autoriser"),
+        "pt" => ("O telefone “{phone}” quer mostrar {what} deste computador.\n\nCódigo: {code}\n\nPermita apenas se o telefone mostrar o mesmo código.", "Recusar", "Permitir"),
+        "zh" => ("手机“{phone}”想要显示这台电脑的{what}。\n\n代码：{code}\n\n只有手机上显示相同的代码时才允许。", "拒绝", "允许"),
+        "ja" => ("スマートフォン「{phone}」がこのコンピュータの{what}を表示しようとしています。\n\nコード：{code}\n\nスマートフォンに同じコードが表示されている場合のみ許可してください。", "拒否", "許可"),
+        _ => ("The phone “{phone}” wants to show this computer’s {what}.\n\nCode: {code}\n\nAllow only if the phone shows the same code.", "Deny", "Allow"),
     }
 }
 

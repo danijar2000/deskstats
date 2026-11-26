@@ -48,6 +48,13 @@ cp "$built" "$bin.new"
 chmod 755 "$bin.new"
 mv -f "$bin.new" "$bin"
 
+# The service does not get the PATH of this shell, so the adb found here is handed to it by name.
+adb_line=""
+adb="$(command -v adb || true)"
+case "$adb" in
+  /*) adb_line="Environment=\"DESKSTATS_ADB=${adb//%/%%}\"" ;;
+esac
+
 cat > "$unit" <<UNIT
 [Unit]
 Description=deskstats: this computer's stats on an Android phone
@@ -59,6 +66,7 @@ Restart=on-failure
 RestartSec=30
 # Stop only the server itself: the adb server it may have started is shared with other tools.
 KillMode=process
+$adb_line
 
 [Install]
 WantedBy=default.target

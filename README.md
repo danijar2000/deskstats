@@ -128,6 +128,14 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 The pairing key stays in `~/Library/Application Support/deskstats` (delete the folder to forget
 the phone); the entries in Privacy & Security can only be removed there by hand.
 
+On Linux the same command removes the server; on Windows, in PowerShell:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1))) -Uninstall
+```
+
+The pairing key stays in `~/.config/deskstats` on Linux and in `%APPDATA%\deskstats` on Windows.
+
 ## Troubleshooting
 
 | What you see | What to do |

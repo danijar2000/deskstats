@@ -79,6 +79,9 @@ jobs:
           test "$(server/target/${{ matrix.arch }}-unknown-linux-musl/release/deskstats --qr-bits https://example.com/app.apk | wc -l)" = 25
           curl -fsS -H 'X-Deskstats: 1' http://127.0.0.1:8787/info | tee info.json
           grep -q '"app":"deskstats"' info.json
+          # A phone asking to be let in over Wi-Fi: the key agreement runs, and the server lives on to answer below.
+          curl -fsS -H 'X-Deskstats: 1' 'http://127.0.0.1:8787/pair?k=046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5&n=ci' | tee pair.json
+          grep -q '"k":"04[0-9a-f]\{128\}","s":"' pair.json
           curl -s -H "Authorization: Bearer $token" http://127.0.0.1:8787/stats > /dev/null
           sleep 2
           curl -fsS -H "Authorization: Bearer $token" http://127.0.0.1:8787/stats | tee stats.json
@@ -145,6 +148,10 @@ jobs:
           $info = curl.exe -fsS -H 'X-Deskstats: 1' http://127.0.0.1:8787/info
           $info
           if ($info -notmatch '"app":"deskstats"') { throw 'no /info' }
+          # A phone asking to be let in over Wi-Fi: the key agreement runs, and the server lives on to answer below.
+          $pair = curl.exe -fsS -H 'X-Deskstats: 1' 'http://127.0.0.1:8787/pair?k=046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5&n=ci'
+          $pair
+          if ($pair -notmatch '"k":"04[0-9a-f]{128}","s":"') { throw 'no /pair' }
           curl.exe -s -H "Authorization: Bearer $token" http://127.0.0.1:8787/stats | Out-Null
           Start-Sleep -Seconds 2
           $stats = curl.exe -fsS -H "Authorization: Bearer $token" http://127.0.0.1:8787/stats
