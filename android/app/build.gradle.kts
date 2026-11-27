@@ -14,12 +14,26 @@ android {
         versionName = "0.0.1"
     }
 
+    // The release key comes from the environment (CI keeps it in secrets); without it the build is signed with the
+    // debug key, which is fine for trying a build but cannot update an installed release.
+    val keystore = System.getenv("DESKSTATS_KEYSTORE")?.takeIf { it.isNotEmpty() }
+    signingConfigs {
+        if (keystore != null) {
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("DESKSTATS_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("DESKSTATS_KEY_ALIAS")
+                keyPassword = System.getenv("DESKSTATS_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (keystore != null) "release" else "debug")
             vcsInfo.include = false
         }
     }
