@@ -8,8 +8,6 @@ Convierte un viejo teléfono Android en un panel de estado para tu Mac: reloj, t
 notificaciones del Mac y del iPhone, batería del ratón y del teclado, y carga de CPU, GPU,
 memoria y red con gráficos en directo.
 
-![Un Mac con el panel del teléfono al lado](screenshots/hero.png)
-
 - **En el Mac** corre una app diminuta en segundo plano: unos 4 MB de memoria y medio por ciento
   de un núcleo mientras el teléfono está conectado, y nada cuando no lo está.
 - **El teléfono** se conecta por cable USB o por Wi‑Fi y cambia de uno a otro por sí solo.
