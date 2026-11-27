@@ -97,7 +97,8 @@ impl App {
         let language = text::system_language();
         fonts(&cc.egui_ctx, language);
         style(&cc.egui_ctx);
-        let shown = Arc::new(AtomicBool::new(false));
+        // Started from the icon, the window comes to the front at once, as when it is asked to later.
+        let shown = Arc::new(AtomicBool::new(snapshot.is_none()));
         {
             let (shown, ctx) = (shown.clone(), cc.egui_ctx.clone());
             std::thread::spawn(move || {
