@@ -101,7 +101,8 @@ pub fn ask() -> Server {
 /// The text after `"key":` in [json]. The answer of the server is small and its keys do not repeat.
 fn after<'a>(json: &'a str, key: &str) -> Option<&'a str> {
     let mark = format!("\"{key}\":");
-    json.find(&mark).map(|at| &json[at + mark.len()..])
+    // GitHub puts a space after the colon; the server does not.
+    json.find(&mark).map(|at| json[at + mark.len()..].trim_start())
 }
 
 fn string(json: &str, key: &str) -> Option<String> {
@@ -222,6 +223,98 @@ pub fn parse_stats(json: &str) -> Option<Stats> {
     })
 }
 
+/// The latest release on GitHub when it is newer than this program, asked at most every few hours (the answer is
+/// kept in the data folder, so that opening the panel again does not ask GitHub again).
+pub fn newer_release() -> Option<String> {
+    const EVERY: u64 = 6 * 3600;
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+    let cache = std::path::Path::new(&data_dir()).join("latest-release");
+    let kept = std::fs::read_to_string(&cache).ok().and_then(|t| {
+        let (at, version) = t.trim().split_once(' ')?;
+        let at: u64 = at.parse().ok()?;
+        (now.saturating_sub(at) < EVERY).then(|| version.to_string())
+    });
+    let latest = match kept {
+        Some(version) => version,
+        None => {
+            let curl = if cfg!(windows) { "curl.exe" } else { "curl" };
+            let out = quiet(curl)
+                .args(["-q", "-fsSL", "--max-time", "10", "-H", "Accept: application/vnd.github+json", "https://api.github.com/repos/danijar2000/deskstats/releases/latest"])
+                .output()
+                .ok()?;
+            let version = string(&String::from_utf8_lossy(&out.stdout), "tag_name").unwrap_or_default();
+            // A failed question is asked again next time; only an answer is kept.
+            if !version.is_empty() {
+                let _ = std::fs::write(&cache, format!("{now} {version}"));
+            }
+            version
+        }
+    };
+    newer(&latest, crate::VERSION).then_some(latest)
+}
+
+/// Whether version [a] is later than [b], segment by segment ("v0.10.0" is later than "0.9.3").
+pub fn newer(a: &str, b: &str) -> bool {
+    let parts = |v: &str| v.trim_start_matches('v').split('.').map(|p| p.chars().take_while(char::is_ascii_digit).collect::<String>().parse::<u32>().unwrap_or(0)).collect::<Vec<_>>();
+    let (a, b) = (parts(a), parts(b));
+    for i in 0..a.len().max(b.len()) {
+        let (x, y) = (a.get(i).copied().unwrap_or(0), b.get(i).copied().unwrap_or(0));
+        if x != y {
+            return x > y;
+        }
+    }
+    false
+}
+
+/// Updates this computer to the latest release with the same command as the first install, without the phone part.
+/// It runs on its own: the installer closes the panel and starts the icon again.
+pub fn update() -> bool {
+    let log = std::path::Path::new(&data_dir()).join("update.log").to_string_lossy().into_owned();
+    // The panel that is open next sees this mark: if the server is still the old one a few minutes later, the update
+    // failed, and it says so (with the log).
+    let started = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let _ = std::fs::write(update_mark(), format!("{started} {}", crate::VERSION));
+    if cfg!(windows) {
+        let script = format!(
+            "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1))) -NoPhone *> '{}'",
+            log.replace('\'', "''")
+        );
+        quiet("powershell").args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script]).spawn().is_ok()
+    } else {
+        let script = "curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash -s -- --no-phone > \"$0\" 2>&1";
+        let mut command = quiet("/bin/sh");
+        command.args(["-c", script, &log]);
+        // A process group of its own: the installer stops the icon's launchd job, and launchd ends the whole group
+        // of that job, which the panel and anything it starts belong to.
+        #[cfg(unix)]
+        std::os::unix::process::CommandExt::process_group(&mut command, 0);
+        command.spawn().is_ok()
+    }
+}
+
+fn update_mark() -> std::path::PathBuf {
+    std::path::Path::new(&data_dir()).join("update-started")
+}
+
+/// The log of an update that did not take: one started over three minutes ago from this very version. The mark goes
+/// away once the update took (this program is then a newer one) or once the user has seen the failure.
+pub fn failed_update() -> Option<String> {
+    let mark = update_mark();
+    let text = std::fs::read_to_string(&mark).ok()?;
+    let (at, from) = text.trim().split_once(' ')?;
+    let at: u64 = at.parse().ok()?;
+    if from != crate::VERSION {
+        let _ = std::fs::remove_file(&mark);
+        return None;
+    }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+    if now.saturating_sub(at) < 180 {
+        return None;
+    }
+    let _ = std::fs::remove_file(&mark);
+    Some(std::path::Path::new(&data_dir()).join("update.log").to_string_lossy().into_owned())
+}
+
 /// A command that shows no window of its own, not even for a moment.
 fn quiet(program: &str) -> Command {
     #[allow(unused_mut)]
@@ -300,6 +393,15 @@ mod tests {
         let never = parse(r#"{"version":"1","about":{"name":"x"},"ips":[],"wifi":false,"adb":true,"phone_ago_ms":null,"state":"awake"}"#).unwrap();
         assert_eq!((never.addresses.len(), never.phone_ago, never.adb), (0, None, true));
         assert_eq!(parse(r#"{"error":"not found"}"#), None);
+    }
+
+    #[test]
+    fn versions_compare_by_segment() {
+        assert!(newer("v0.10.0", "0.9.3"));
+        assert!(newer("0.7.1", "v0.7.0"));
+        assert!(!newer("v0.7.0", "0.7.0"));
+        assert!(!newer("0.6.0", "0.7.0"));
+        assert!(!newer("", "0.7.0"));
     }
 
     #[test]

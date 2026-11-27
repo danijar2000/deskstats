@@ -31,7 +31,7 @@ class SettingsPage(context: Context, host: Host) : Page(context, host) {
         Item(Kind.INTERVAL, context.getString(R.string.set_interval), "", Options.INTERVALS.map { seconds(it) }),
         Item(Kind.WEATHER, context.getString(R.string.set_weather), "", Options.WEATHER.map { minutes(it) }),
     )
-    private val version = context.getString(R.string.version, appVersion(context))
+    private val version = context.getString(R.string.version, appVersion(context)) + " · " + context.getString(R.string.update_check)
     private var total = 0f
 
     private val rowHeight get() = max(u * 0.13f, 52f * resources.displayMetrics.density)
@@ -224,7 +224,12 @@ class SettingsPage(context: Context, host: Host) : Page(context, host) {
     override fun onTap(x: Float, y: Float) {
         if (y < bodyTop) return
         val at = y - bodyTop + scroll
-        val item = items.firstOrNull { at >= it.top && at < it.top + it.height } ?: return
+        val item = items.firstOrNull { at >= it.top && at < it.top + it.height }
+        if (item == null) {
+            // The line with the version at the bottom: a tap asks GitHub for a new one.
+            if (at >= total - rowHeight * 0.9f) (host as? android.app.Activity)?.let { Updater.check(it, context, manual = true) }
+            return
+        }
         val o = host.options
         when (item.kind) {
             Kind.LANGUAGE -> host.open(LanguagePage(context, host))

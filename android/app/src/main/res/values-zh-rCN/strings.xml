@@ -183,4 +183,14 @@
     <string name="ping_ms">%d 毫秒</string>
     <string name="focus_left">专注 %s</string>
     <string name="focus_done">专注结束，休息一下</string>
+    <string name="update_check">检查更新</string>
+    <string name="update_title">Deskstats %s 已发布</string>
+    <string name="update_message">当前版本 %1$s。更新将从 GitHub 下载 %2$s MB 并打开安装程序。</string>
+    <string name="update_now">更新</string>
+    <string name="update_later">稍后</string>
+    <string name="update_downloading">正在下载… %d%%</string>
+    <string name="update_failed">更新失败：%s</string>
+    <string name="update_latest">Deskstats %s 已是最新版本</string>
+    <string name="update_allow">请允许 Deskstats 安装应用，然后返回：会再次提示更新</string>
+    <string name="update_no_storage">手机没有共享存储</string>
 </resources>

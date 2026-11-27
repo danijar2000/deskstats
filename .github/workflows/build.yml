@@ -266,6 +266,14 @@ jobs:
             echo "::error::the secret ANDROID_KEYSTORE_BASE64 is missing: a release must be signed with the release key"
             exit 1
           fi
+      # The app compares its own version with the latest release, so a tag must carry the version of the code.
+      - name: Version matches the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          for f in server/Cargo.toml ui/Cargo.toml; do
+            v="$(sed -n 's/^version = "\(.*\)"/\1/p' "$f" | head -1)"
+            if [ "v$v" != "$GITHUB_REF_NAME" ]; then echo "::error::$f says $v, the tag is $GITHUB_REF_NAME"; exit 1; fi
+          done
       - name: Build and lint
         working-directory: android
         env:
