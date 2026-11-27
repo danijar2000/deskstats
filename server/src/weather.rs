@@ -108,19 +108,21 @@ fn field(value: Option<f64>, digits: usize) -> String {
 fn weather_json(lat: f64, lon: f64) -> Option<String> {
     let json = curl(&format!(
         "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&timezone=auto&forecast_days=1\
-         &current=temperature_2m,apparent_temperature,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min"
+         &current=temperature_2m,apparent_temperature,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&timeformat=unixtime"
     ))?;
     let current = &json[json.find("\"current\":{")?..];
     let daily = json.find("\"daily\":{").map(|i| &json[i..]).unwrap_or("");
     let temp = number_after(current, "temperature_2m")?;
     Some(format!(
-        "{{\"temp\":{},\"feels\":{},\"code\":{},\"is_day\":{},\"max\":{},\"min\":{}}}",
+        "{{\"temp\":{},\"feels\":{},\"code\":{},\"is_day\":{},\"max\":{},\"min\":{},\"sunrise\":{},\"sunset\":{}}}",
         field(Some(temp), 1),
         field(number_after(current, "apparent_temperature"), 1),
         field(number_after(current, "weather_code"), 0),
         field(number_after(current, "is_day"), 0),
         field(number_after(daily, "temperature_2m_max"), 1),
         field(number_after(daily, "temperature_2m_min"), 1),
+        field(number_after(daily, "sunrise"), 0),
+        field(number_after(daily, "sunset"), 0),
     ))
 }
 

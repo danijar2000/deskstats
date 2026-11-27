@@ -15,18 +15,19 @@ mémoire et réseau avec des graphiques en direct.
 - **Tout se règle sur le téléphone** : langue, thème, orientation, blocs à afficher, fréquence
   d'actualisation, accès Wi‑Fi.
 
-## Captures d'écran
+## Aperçu
 
-| | |
-|---|---|
-| ![Thème sombre](screenshots/main-dark.png) | ![Thème néon](screenshots/main-neon.png) |
-| Thème **Sombre**, par défaut | Thème **Néon** |
-| ![Thème clair](screenshots/main-light.png) | ![Portrait](screenshots/main-portrait.png) |
-| Thème **Clair** | Orientation **Portrait** |
-| ![Applications](screenshots/apps.png) | ![Notifications](screenshots/alerts.png) |
-| Touchez une carte de charge : les apps du Mac triées selon cette charge | Touchez les notifications : la liste complète avec les textes |
-| ![Villes](screenshots/places.png) | ![Réglages](screenshots/settings.png) |
-| Touchez l'horloge ou la météo : choisissez une ville | L'engrenage : les réglages |
+Sur l'ordinateur : une commande pour installer, deux autorisations et le panneau sous l'icône de la barre des menus. Sur le téléphone : les pages de l'app.
+
+[![Aperçu](tour.gif)](tour.mp4)
+
+[Voir en MP4](tour.mp4)
+
+**L'app du téléphone**
+
+[![L'app du téléphone](phone.gif)](phone.mp4)
+
+[Voir en MP4](phone.mp4)
 
 ## Prérequis
 
@@ -55,7 +56,7 @@ Pas de téléphone branché ? Ajoutez `-s -- --no-phone` après `bash` et instal
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 vous-même.
 
-**Pas de câble ou pas d'adb ?** Le script affiche alors un code QR avec le lien vers l'app : scannez-le avec le téléphone, installez l'app et ouvrez-la. Sur le même Wi‑Fi, elle trouve l'ordinateur toute seule ; touchez-le et autorisez le téléphone sur l'ordinateur. adb ne sert que pour le câble USB.
+**Pas de câble ou pas d'adb ?** Le script affiche alors le lien vers l'app : ouvrez-le sur le téléphone, installez l'app et ouvrez-la. Sur le même Wi‑Fi, elle trouve l'ordinateur toute seule ; touchez-le et autorisez le téléphone sur l'ordinateur. adb ne sert que pour le câble USB.
 
 ### Autorisations sur le Mac
 

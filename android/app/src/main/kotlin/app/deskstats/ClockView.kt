@@ -25,7 +25,7 @@ class Layout(val w: Float, val h: Float, setup: BlockSetup) {
     val barHeight = u * 0.05f
     val gear = RectF(w - pad - barHeight, pad, w - pad, pad + barHeight)
 
-    val cards: List<Block> = setup.shown(Block.CPU, Block.GPU, Block.RAM, Block.NET)
+    val cards: List<Block> = setup.shown(Block.CPU, Block.GPU, Block.RAM, Block.NET, Block.DISK)
     val cardRects: List<RectF>
     val clock: RectF?
     val weather: RectF?
@@ -56,7 +56,7 @@ class Layout(val w: Float, val h: Float, setup: BlockSetup) {
             sections.addAll(left)
             sections.addAll(right)
             if (cards.isNotEmpty()) sections.add(cards)
-            val cardRows = if (cards.size > 2) 2 else 1
+            val cardRows = if (cards.isEmpty()) 1 else (cards.size + perRowOf(cards.size) - 1) / perRowOf(cards.size)
             fun base(s: Any): Float = when (s) {
                 Block.CLOCK -> h * 0.175f
                 Block.WEATHER -> h * 0.095f
@@ -83,7 +83,7 @@ class Layout(val w: Float, val h: Float, setup: BlockSetup) {
             batteries = rects[Block.BATTERIES]
             val row = rects[cards]
             cardRects = if (row == null) emptyList() else {
-                val perRow = if (cards.size > 2) 2 else cards.size
+                val perRow = perRowOf(cards.size)
                 val cardHeight = (row.height() - gap * (cardRows - 1)) / cardRows
                 cards.indices.map { i ->
                     val r = i / perRow
@@ -255,4 +255,11 @@ class ClockView(context: Context) : View(context) {
         canvas.drawText(secondsFormat.format(now), l.clockLeft + width + l.clockSize * 0.05f, l.clockBaseline - l.clockSize * 0.5f, text)
         Ui.noGlow(text)
     }
+}
+
+/** Cards in one row when the screen stands upright: two, or three when there are five or six. */
+private fun perRowOf(cards: Int): Int = when {
+    cards > 4 -> 3
+    cards > 2 -> 2
+    else -> maxOf(cards, 1)
 }

@@ -15,18 +15,19 @@ Netzwerklast mit Live-Diagrammen.
 - **Alles wird am Telefon eingestellt**: Sprache, Design, Ausrichtung, welche Blöcke angezeigt
   werden, wie oft aktualisiert wird, WLAN-Zugriff.
 
-## Screenshots
+## Rundgang
 
-| | |
-|---|---|
-| ![Dunkles Design](screenshots/main-dark.png) | ![Design Neon](screenshots/main-neon.png) |
-| Design **Dunkel**, die Voreinstellung | Design **Neon** |
-| ![Helles Design](screenshots/main-light.png) | ![Hochformat](screenshots/main-portrait.png) |
-| Design **Hell** | Ausrichtung **Hoch** |
-| ![Apps](screenshots/apps.png) | ![Mitteilungen](screenshots/alerts.png) |
-| Tippe auf eine Lastkarte: die Apps des Macs, sortiert nach dieser Last | Tippe auf die Mitteilungen: die vollständige Liste mit Texten |
-| ![Städte](screenshots/places.png) | ![Einstellungen](screenshots/settings.png) |
-| Tippe auf Uhr oder Wetter: Stadt wählen | Das Zahnrad: Einstellungen |
+Auf dem Computer: Installation mit einem Befehl, zwei Berechtigungen und das Panel unter dem Symbol in der Menüleiste. Auf dem Telefon: die Seiten der App.
+
+[![Rundgang](tour.gif)](tour.mp4)
+
+[Als MP4 ansehen](tour.mp4)
+
+**Die App auf dem Telefon**
+
+[![Die App auf dem Telefon](phone.gif)](phone.mp4)
+
+[Als MP4 ansehen](phone.mp4)
 
 ## Voraussetzungen
 
@@ -55,7 +56,7 @@ Kein Telefon am Kabel? Hänge `-s -- --no-phone` hinter `bash` an und installier
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 selbst.
 
-**Kein Kabel oder kein adb?** Dann zeigt das Skript einen QR-Code mit dem Link zur App: mit dem Telefon scannen, die App installieren und öffnen. Im selben WLAN findet sie den Computer von selbst; tippe ihn an und erlaube das Telefon auf dem Computer. adb wird nur für das USB-Kabel gebraucht.
+**Kein Kabel oder kein adb?** Dann zeigt das Skript den Link zur App: auf dem Telefon öffnen, die App installieren und öffnen. Im selben WLAN findet sie den Computer von selbst; tippe ihn an und erlaube das Telefon auf dem Computer. adb wird nur für das USB-Kabel gebraucht.
 
 ### Berechtigungen auf dem Mac
 

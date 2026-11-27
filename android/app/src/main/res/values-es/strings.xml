@@ -117,7 +117,7 @@
     <string name="zone_middle">Centro</string>
     <string name="zone_bottom">Abajo</string>
     <string name="block_clock">Reloj y fecha</string>
-    <string name="block_clock_note">Hora del teléfono en la zona horaria elegida</string>
+    <string name="block_clock_note">Hora del teléfono en la zona horaria elegida Mantén pulsado para iniciar o parar un temporizador de enfoque de 25 minutos.</string>
     <string name="block_weather">Tiempo</string>
     <string name="block_weather_note">El tiempo en la ciudad elegida</string>
     <string name="block_alerts">Notificaciones</string>
@@ -173,4 +173,14 @@
         <item>Tormenta</item>
         <item>Nublado</item>
     </string-array>
+    <string name="block_disk">Disco</string>
+    <string name="block_disk_note">Espacio libre del disco del sistema y velocidad de lectura y escritura</string>
+    <string name="disk_io">lectura %1$s · escritura %2$s</string>
+    <string name="disk_free">%s libres</string>
+    <string name="uptime">encendido %s</string>
+    <string name="fmt_days_hours">%1$d d %2$d h</string>
+    <string name="fmt_hours_minutes">%1$d h %2$d min</string>
+    <string name="ping_ms">%d ms</string>
+    <string name="focus_left">Enfoque %s</string>
+    <string name="focus_done">Enfoque terminado: descansa</string>
 </resources>

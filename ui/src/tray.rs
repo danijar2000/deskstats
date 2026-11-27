@@ -1,19 +1,45 @@
-//! The icon by the clock. It draws no window itself: a click starts the window as a program of its own, which
-//! comes to the front if it is open already.
+//! The icon by the clock. It draws no window itself: a click starts the panel as a program of its own, which hangs
+//! from the icon. There is no menu: the panel has the Quit button.
 
-/// Opens the window, or brings the open one to the front.
-fn open_window() {
+use std::io::Read;
+use std::net::{Ipv4Addr, TcpListener};
+
+/// Where the icon listens: for the panel's Quit, and so that a second icon does not start.
+pub const TRAY_PORT: u16 = 8790;
+
+/// Takes the port of the icon; None when an icon runs already.
+pub fn claim() -> Option<TcpListener> {
+    TcpListener::bind((Ipv4Addr::LOCALHOST, TRAY_PORT)).ok()
+}
+
+/// Waits for the panel's "quit" and ends the icon. A plain exit: the system does not start it again until the next
+/// sign-in.
+fn listen_for_quit(listener: TcpListener) {
+    std::thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            let mut buf = [0u8; 4];
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(1)));
+            if stream.read_exact(&mut buf).is_ok() && &buf == b"quit" {
+                std::process::exit(0);
+            }
+        }
+    });
+}
+
+/// Opens the panel hanging from the icon: [x] is the middle of the icon and [y] the edge of the bar it opens from, in
+/// points; [side] says where the bar is ("up" for a bar at the bottom, "down" at the top, "auto" when unknown).
+/// A click on the icon while the panel is open closes it.
+fn open_panel(x: f64, y: f64, side: &str) {
     // The click gave this program the right to bring a window to the front; Windows lets it pass that on.
     #[cfg(windows)]
     crate::window::allow_any_to_come_forward();
     if let Ok(me) = std::env::current_exe() {
-        let _ = std::process::Command::new(me).spawn();
+        let _ = std::process::Command::new(me).args(["--at", &format!("{x:.0}"), &format!("{y:.0}"), side]).spawn();
     }
 }
 
 #[cfg(any(target_os = "macos", windows))]
-pub fn run() {
-    use tray_icon::menu::{Menu, MenuEvent, MenuItem};
+pub fn run(listener: TcpListener) {
     use tray_icon::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
     use winit::application::ApplicationHandler;
     use winit::event::{StartCause, WindowEvent};
@@ -22,8 +48,6 @@ pub fn run() {
 
     struct Tray {
         icon: Option<tray_icon::TrayIcon>,
-        open: MenuItem,
-        quit: MenuItem,
     }
 
     impl ApplicationHandler for Tray {
@@ -33,10 +57,7 @@ pub fn run() {
                 let size = 44;
                 let colour = if cfg!(target_os = "macos") { [0, 0, 0] } else { crate::icon::TEAL };
                 let image = tray_icon::Icon::from_rgba(crate::icon::line(size, colour), size, size).ok();
-                let menu = Menu::new();
-                let _ = menu.append(&self.open);
-                let _ = menu.append(&self.quit);
-                let mut builder = TrayIconBuilder::new().with_tooltip("Deskstats").with_menu(Box::new(menu));
+                let mut builder = TrayIconBuilder::new().with_tooltip("Deskstats");
                 if let Some(image) = image {
                     #[cfg(target_os = "macos")]
                     {
@@ -46,10 +67,6 @@ pub fn run() {
                     {
                         builder = builder.with_icon(image);
                     }
-                }
-                if !cfg!(target_os = "macos") {
-                    // On Windows a left click opens the window and the right one shows the menu.
-                    builder = builder.with_menu_on_left_click(false);
                 }
                 match builder.build() {
                     Ok(icon) => {
@@ -67,24 +84,26 @@ pub fn run() {
         fn window_event(&mut self, _event_loop: &ActiveEventLoop, _id: WindowId, _event: WindowEvent) {}
 
         fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-            while let Ok(event) = MenuEvent::receiver().try_recv() {
-                if event.id == self.open.id() {
-                    open_window();
-                } else if event.id == self.quit.id() {
-                    self.icon = None;
-                    event_loop.exit();
-                    return;
-                }
-            }
             while let Ok(event) = TrayIconEvent::receiver().try_recv() {
-                if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                    open_window();
+                if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, rect, .. } = event {
+                    // The icon's place comes in pixels of its screen; the panel wants points.
+                    let monitor = event_loop.primary_monitor();
+                    let scale = monitor.as_ref().map_or(1.0, |m| m.scale_factor());
+                    let screen_high = monitor.as_ref().map_or(f64::MAX, |m| m.size().height as f64);
+                    let (top, bottom) = (rect.position.y, rect.position.y + rect.size.height as f64);
+                    let x = (rect.position.x + rect.size.width as f64 / 2.0) / scale;
+                    if bottom > screen_high / 2.0 {
+                        open_panel(x, top / scale, "up");
+                    } else {
+                        open_panel(x, bottom / scale, "down");
+                    }
                 }
             }
             event_loop.set_control_flow(ControlFlow::WaitUntil(std::time::Instant::now() + std::time::Duration::from_millis(250)));
         }
     }
 
+    listen_for_quit(listener);
     let mut builder = EventLoop::builder();
     #[cfg(target_os = "macos")]
     {
@@ -93,8 +112,7 @@ pub fn run() {
         builder.with_activation_policy(ActivationPolicy::Accessory);
     }
     let Ok(event_loop) = builder.build() else { return };
-    let w = crate::text::words(crate::text::system_language());
-    let mut tray = Tray { icon: None, open: MenuItem::new(w.open, true, None), quit: MenuItem::new(w.quit, true, None) };
+    let mut tray = Tray { icon: None };
     let _ = event_loop.run_app(&mut tray);
 }
 
@@ -134,13 +152,10 @@ fn promote() {
 
 /// Linux: the StatusNotifierItem of KDE and of GNOME with the AppIndicator extension (on by default in Ubuntu).
 #[cfg(target_os = "linux")]
-pub fn run() {
+pub fn run(listener: TcpListener) {
     use ksni::blocking::TrayMethods;
 
-    struct Tray {
-        open: &'static str,
-        quit: &'static str,
-    }
+    struct Tray;
 
     impl ksni::Tray for Tray {
         fn id(&self) -> String {
@@ -157,21 +172,16 @@ pub fn run() {
                 ksni::Icon { width: size as i32, height: size as i32, data }
             }).collect()
         }
-        fn activate(&mut self, _x: i32, _y: i32) {
-            open_window();
-        }
-        fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
-            use ksni::menu::StandardItem;
-            vec![
-                StandardItem { label: self.open.into(), activate: Box::new(|_: &mut Self| open_window()), ..Default::default() }.into(),
-                StandardItem { label: self.quit.into(), activate: Box::new(|_: &mut Self| std::process::exit(0)), ..Default::default() }.into(),
-            ]
+        fn activate(&mut self, x: i32, y: i32) {
+            // Some desktops say where the click was, some say 0, 0: then the panel finds its own place.
+            let (x, y) = if x == 0 && y == 0 { (f64::NAN, f64::NAN) } else { (x as f64, y as f64) };
+            open_panel(x, y, "auto");
         }
     }
 
-    let w = crate::text::words(crate::text::system_language());
-    // No tray on this desktop (GNOME without the extension): the window is still in the menu of applications.
-    let Ok(_handle) = (Tray { open: w.open, quit: w.quit }).spawn() else { return };
+    listen_for_quit(listener);
+    // No tray on this desktop (GNOME without the extension): the menu of applications opens the panel instead.
+    let Ok(_handle) = Tray.spawn() else { return };
     loop {
         std::thread::park();
     }

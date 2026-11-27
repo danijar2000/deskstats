@@ -123,18 +123,7 @@ if ($panel) {
     }
     # Like the server: through Explorer when this window runs as administrator, so that it runs as the user.
     if ($admin) {
-        # Explorer passes no arguments to a program, but it opens a shortcut with them: one with --tray starts
-        # the icon, and then the window.
-        try {
-            $tray = Join-Path $dir 'Deskstats tray.lnk'
-            $link = (New-Object -ComObject WScript.Shell).CreateShortcut($tray)
-            $link.TargetPath = $ui
-            $link.Arguments = '--tray'
-            $link.WorkingDirectory = $dir
-            $link.Save()
-            Start-Process -FilePath (Join-Path $env:WINDIR 'explorer.exe') -ArgumentList "`"$tray`""
-            Start-Sleep -Seconds 1
-        } catch { }
+        # Started with no arguments, the program is the icon.
         try { Start-Process -FilePath (Join-Path $env:WINDIR 'explorer.exe') -ArgumentList "`"$ui`"" } catch { }
     } else {
         Start-Process -FilePath $ui -ArgumentList '--tray' -WorkingDirectory $dir
@@ -142,7 +131,7 @@ if ($panel) {
 }
 
 Write-Host 'deskstats is running and starts at sign-in.'
-if ($panel) { Write-Host 'Its icon is by the clock (it may sit under the ^ arrow there); Deskstats is in the Start menu too.' }
+if ($panel) { Write-Host 'Its icon is by the clock (it may sit under the ^ arrow there): a click shows the panel.' }
 Write-Host ''
 Write-Host 'When Windows asks whether to let deskstats through the firewall, allow it for the kind of network'
 Write-Host 'this Wi-Fi is (Windows often calls a home Wi-Fi public; tick both kinds when unsure):'

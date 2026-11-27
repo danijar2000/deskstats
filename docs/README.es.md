@@ -15,18 +15,19 @@ memoria y red con gráficos en directo.
 - **Todo se configura en el teléfono**: idioma, tema, orientación, qué bloques mostrar,
   cada cuánto actualizar, acceso por Wi‑Fi.
 
-## Capturas
+## Recorrido
 
-| | |
-|---|---|
-| ![Tema oscuro](screenshots/main-dark.png) | ![Tema neón](screenshots/main-neon.png) |
-| Tema **Oscuro**, el predeterminado | Tema **Neón** |
-| ![Tema claro](screenshots/main-light.png) | ![Vertical](screenshots/main-portrait.png) |
-| Tema **Claro** | Orientación **Vertical** |
-| ![Aplicaciones](screenshots/apps.png) | ![Notificaciones](screenshots/alerts.png) |
-| Toca una tarjeta de carga: las apps del Mac ordenadas por esa carga | Toca las notificaciones: la lista completa con sus textos |
-| ![Ciudades](screenshots/places.png) | ![Ajustes](screenshots/settings.png) |
-| Toca el reloj o el tiempo: elige una ciudad | El engranaje: ajustes |
+En el ordenador: se instala con un comando, dos permisos y el panel bajo el icono de la barra de menús. En el teléfono: las páginas de la app.
+
+[![Recorrido](tour.gif)](tour.mp4)
+
+[Ver en MP4](tour.mp4)
+
+**La app del teléfono**
+
+[![La app del teléfono](phone.gif)](phone.mp4)
+
+[Ver en MP4](phone.mp4)
 
 ## Requisitos
 
@@ -54,7 +55,7 @@ en el teléfono. Unos segundos después, el Mac abre el panel en el teléfono y 
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 por tu cuenta.
 
-**¿Sin cable o sin adb?** Entonces el script muestra un código QR con el enlace a la app: escanéalo con el teléfono, instala la app y ábrela. En la misma Wi‑Fi encuentra el ordenador sola; tócalo y permite el teléfono en el ordenador. adb solo hace falta para el cable USB.
+**¿Sin cable o sin adb?** Entonces el script muestra el enlace a la app: ábrelo en el teléfono, instala la app y ábrela. En la misma Wi‑Fi encuentra el ordenador sola; tócalo y permite el teléfono en el ordenador. adb solo hace falta para el cable USB.
 
 ### Permisos en el Mac
 

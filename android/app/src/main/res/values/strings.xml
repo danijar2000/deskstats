@@ -130,7 +130,7 @@
     <string name="zone_middle">Middle</string>
     <string name="zone_bottom">Bottom</string>
     <string name="block_clock">Clock and date</string>
-    <string name="block_clock_note">Phone time in the chosen time zone</string>
+    <string name="block_clock_note">Phone time in the chosen time zone Hold it to start or stop a 25-minute focus timer.</string>
     <string name="block_weather">Weather</string>
     <string name="block_weather_note">Weather in the chosen city</string>
     <string name="block_alerts">Notifications</string>
@@ -186,4 +186,14 @@
         <item>Thunderstorm</item>
         <item>Cloudy</item>
     </string-array>
+    <string name="block_disk">Disk</string>
+    <string name="block_disk_note">Free space of the system disk and how fast it is read and written</string>
+    <string name="disk_io">read %1$s · write %2$s</string>
+    <string name="disk_free">%s free</string>
+    <string name="uptime">up %s</string>
+    <string name="fmt_days_hours">%1$d d %2$d h</string>
+    <string name="fmt_hours_minutes">%1$d h %2$d min</string>
+    <string name="ping_ms">%d ms</string>
+    <string name="focus_left">Focus %s</string>
+    <string name="focus_done">Focus done — take a break</string>
 </resources>

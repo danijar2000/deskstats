@@ -117,7 +117,7 @@
     <string name="zone_middle">中部</string>
     <string name="zone_bottom">底部</string>
     <string name="block_clock">时钟和日期</string>
-    <string name="block_clock_note">所选时区的手机时间</string>
+    <string name="block_clock_note">所选时区的手机时间 长按可开始或停止 25 分钟专注计时。</string>
     <string name="block_weather">天气</string>
     <string name="block_weather_note">所选城市的天气</string>
     <string name="block_alerts">通知</string>
@@ -173,4 +173,14 @@
         <item>雷暴</item>
         <item>多云</item>
     </string-array>
+    <string name="block_disk">磁盘</string>
+    <string name="block_disk_note">系统磁盘的可用空间和读写速度</string>
+    <string name="disk_io">读 %1$s · 写 %2$s</string>
+    <string name="disk_free">可用 %s</string>
+    <string name="uptime">已运行 %s</string>
+    <string name="fmt_days_hours">%1$d天%2$d小时</string>
+    <string name="fmt_hours_minutes">%1$d小时%2$d分</string>
+    <string name="ping_ms">%d 毫秒</string>
+    <string name="focus_left">专注 %s</string>
+    <string name="focus_done">专注结束，休息一下</string>
 </resources>

@@ -32,6 +32,9 @@ data class Weather(
     val isDay: Boolean,
     val max: Float?,
     val min: Float?,
+    /** Today's sunrise and sunset, in seconds since 1970; null from servers that do not send them. */
+    val sunrise: Long? = null,
+    val sunset: Long? = null,
 )
 
 data class Battery(val kind: String, val name: String, val pct: Int)
@@ -60,6 +63,15 @@ class Stats(
     /** False for a computer whose system the server cannot read notifications from (Linux, Windows). */
     val alertsSupported: Boolean,
     val os: String,
+    /** The system disk: size and free bytes (0 when unknown), and how fast it is read and written. */
+    val diskTotal: Long = 0L,
+    val diskFree: Long = 0L,
+    val diskRead: Float? = null,
+    val diskWrite: Float? = null,
+    /** Seconds since the computer started, its CPU temperature and the time to the internet in milliseconds. */
+    val uptime: Long? = null,
+    val temp: Float? = null,
+    val ping: Int? = null,
 ) {
     companion object {
         private fun JSONObject.optFloat(name: String): Float? =
@@ -75,6 +87,8 @@ class Stats(
                     isDay = o.optInt("is_day", 1) != 0,
                     max = o.optFloat("max"),
                     min = o.optFloat("min"),
+                    sunrise = o.optLong("sunrise", 0L).takeIf { it > 0L },
+                    sunset = o.optLong("sunset", 0L).takeIf { it > 0L },
                 )
             } catch (e: Exception) {
                 null
@@ -107,6 +121,15 @@ class Stats(
                     )
                 }
             }
+            // Values that programs on the computer pushed are shown like notifications, newest first.
+            val pushed = o.optJSONArray("pushed")?.let { list ->
+                (0 until list.length()).mapNotNull { i ->
+                    val p = list.optJSONObject(i) ?: return@mapNotNull null
+                    val key = p.optString("k").take(32)
+                    if (key.isEmpty()) null else Alert(id = PanelView.PUSHED + key, ts = p.optLong("ts"), app = key, title = p.optString("v").take(64), body = "")
+                }.reversed()
+            } ?: emptyList()
+            val disk = o.optJSONObject("disk")
             return Stats(
                 ts = o.optLong("ts"),
                 name = o.optString("name").trim().take(64),
@@ -122,11 +145,18 @@ class Stats(
                 up = net.getDouble("up_bps").toFloat(),
                 weather = parseWeather(o.optJSONObject("weather")),
                 batteries = batteries,
-                alerts = alerts,
-                alertsDenied = o.has("alerts") && o.isNull("alerts"),
+                alerts = if (pushed.isEmpty()) alerts else (pushed + (alerts ?: emptyList())).sortedByDescending { it.ts },
+                alertsDenied = pushed.isEmpty() && o.has("alerts") && o.isNull("alerts"),
                 // Servers before the other systems were supported are Macs and do not say what they run on.
-                alertsSupported = o.optString("os", "macos") == "macos",
+                alertsSupported = o.optString("os", "macos") == "macos" || pushed.isNotEmpty(),
                 os = o.optString("os", "macos").take(16),
+                diskTotal = disk?.optLong("total", 0L) ?: 0L,
+                diskFree = disk?.optLong("free", 0L) ?: 0L,
+                diskRead = disk?.optFloat("read_bps"),
+                diskWrite = disk?.optFloat("write_bps"),
+                uptime = if (o.isNull("uptime")) null else o.optLong("uptime", -1L).takeIf { it >= 0L },
+                temp = o.optFloat("temp"),
+                ping = if (o.isNull("ping")) null else o.optInt("ping", -1).takeIf { it >= 0 },
             )
         }
     }
@@ -317,7 +347,7 @@ class MainActivity : Activity(), Page.Host {
                 Block.CLOCK, Block.WEATHER -> open(PlacesPage(ui, this))
                 Block.ALERTS -> open(AlertsPage(ui, this).also { page -> panel.latest?.let(page::push) })
                 Block.CPU, Block.GPU, Block.RAM, Block.NET -> open(ProcsPage(ui, this, block) { watchTopPage() })
-                Block.BATTERIES -> {}
+                Block.BATTERIES, Block.DISK -> {}
             }
         }
         p.alertsEnabled = options.alerts
@@ -499,6 +529,12 @@ class MainActivity : Activity(), Page.Host {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             back()
+            return true
+        }
+        // The volume keys go to the next or the previous computer, like a swipe, when there is more than one.
+        if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) && pages.isEmpty() && paired.list.size > 1) {
+            restartIdle()
+            if (event?.repeatCount == 0) switchServer(if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) 1 else -1)
             return true
         }
         return super.onKeyDown(keyCode, event)

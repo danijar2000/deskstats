@@ -4,6 +4,7 @@ pub mod adb;
 pub mod alerts;
 pub mod crypto;
 pub mod ec;
+pub mod extra;
 pub mod ffi;
 mod net;
 pub mod power;

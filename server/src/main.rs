@@ -7,9 +7,9 @@ mod http;
 mod lan;
 mod load;
 mod pair;
+mod ping;
 mod power;
 mod procs;
-mod qr;
 mod settings;
 #[cfg_attr(target_os = "macos", path = "sys/mac/mod.rs")]
 #[cfg_attr(target_os = "linux", path = "sys/linux/mod.rs")]
@@ -32,7 +32,11 @@ pub const VERSION: &str = match option_env!("DESKSTATS_VERSION") {
     _ => env!("CARGO_PKG_VERSION"),
 };
 
-type Counters = (Vec<(u64, u64)>, std::collections::HashMap<String, (u64, u64)>, Instant);
+type Counters = (Vec<(u64, u64)>, std::collections::HashMap<String, (u64, u64)>, Option<(u64, u64)>, Instant);
+
+/// How often the free space of the disk and the CPU temperature are read: they change slowly.
+const DISK_EVERY: Duration = Duration::from_secs(60);
+const TEMP_EVERY: Duration = Duration::from_secs(5);
 
 use sys::data_dir;
 
@@ -52,6 +56,12 @@ fn load_token() -> std::io::Result<String> {
     std::io::Write::write_all(&mut file, token.as_bytes())?;
     log("token: created a new one; the phone gets it the next time it is connected over USB");
     Ok(token)
+}
+
+/// Whether a phone, or the window on this computer, asked for numbers lately.
+fn someone_looks(shared: &http::Shared, settings: &settings::Settings) -> bool {
+    let last = shared.last_request_ms.load(Ordering::Relaxed).max(shared.last_window_ms.load(Ordering::Relaxed));
+    last != 0 && now_ms().saturating_sub(last) <= settings.idle_after().as_millis() as u64
 }
 
 fn spawn(name: &str, work: impl FnOnce() + Send + 'static) -> bool {
@@ -85,7 +95,26 @@ struct Load<'a> {
     ram_total: u64,
     down_bps: f64,
     up_bps: f64,
+    /// The disk's size and free space, and how fast it is read and written.
+    disk: Option<(u64, u64)>,
+    disk_rates: Option<(f64, f64)>,
+    uptime: Option<u64>,
+    temp: Option<f64>,
+    ping: Option<u32>,
     batteries: &'a str,
+}
+
+fn opt<T: std::fmt::Display>(value: Option<T>) -> String {
+    value.map_or_else(|| String::from("null"), |v| v.to_string())
+}
+
+fn disk_json(l: &Load) -> String {
+    let Some((total, free)) = l.disk else { return String::from("null") };
+    let (read, write) = match l.disk_rates {
+        Some((r, w)) => (format!("{r:.0}"), format!("{w:.0}")),
+        None => (String::from("null"), String::from("null")),
+    };
+    format!("{{\"total\":{total},\"free\":{free},\"read_bps\":{read},\"write_bps\":{write}}}")
 }
 
 fn head_json(l: &Load) -> String {
@@ -95,28 +124,13 @@ fn head_json(l: &Load) -> String {
     };
     let ram_pct = if l.ram_total > 0 { l.ram_used as f64 * 100.0 / l.ram_total as f64 } else { 0.0 };
     format!(
-        "{{\"ts\":{},\"interval_ms\":{},\"mac\":\"{}\",\"os\":\"{}\",\"name\":\"{}\",\"cpu\":{{\"name\":\"{}\",\"pct\":{:.1}}},\"gpu\":{gpu},\"ram\":{{\"used\":{},\"total\":{},\"pct\":{ram_pct:.1}}},\"net\":{{\"down_bps\":{:.0},\"up_bps\":{:.0}}},\"batteries\":{},",
-        l.ts, l.interval_ms, l.mac, sys::OS, l.name, l.cpu_name, l.cpu_pct, l.ram_used, l.ram_total, l.down_bps, l.up_bps, l.batteries,
+        "{{\"ts\":{},\"interval_ms\":{},\"mac\":\"{}\",\"os\":\"{}\",\"name\":\"{}\",\"cpu\":{{\"name\":\"{}\",\"pct\":{:.1}}},\"gpu\":{gpu},\"ram\":{{\"used\":{},\"total\":{},\"pct\":{ram_pct:.1}}},\"net\":{{\"down_bps\":{:.0},\"up_bps\":{:.0}}},\"disk\":{},\"uptime\":{},\"temp\":{},\"ping\":{},\"batteries\":{},",
+        l.ts, l.interval_ms, l.mac, sys::OS, l.name, l.cpu_name, l.cpu_pct, l.ram_used, l.ram_total, l.down_bps, l.up_bps,
+        disk_json(l), opt(l.uptime), opt(l.temp.map(|t| format!("{t:.0}"))), opt(l.ping), l.batteries,
     )
 }
 
 fn main() {
-    // "--qr TEXT" prints a QR code for a terminal and "--qr-bits TEXT" prints it as rows of 0 and 1; the
-    // installers use them to show the link to the phone app. Nothing else of the server runs then.
-    let arguments: Vec<String> = std::env::args().skip(1).collect();
-    if let [flag, text] = arguments.as_slice() {
-        if flag == "--qr" || flag == "--qr-bits" {
-            match qr::Qr::encode(text) {
-                Some(code) => {
-                    // Whoever asked may have gone already; that is not worth a crash.
-                    let text = if flag == "--qr" { code.terminal() } else { code.bits() };
-                    let _ = std::io::Write::write_all(&mut std::io::stdout().lock(), text.as_bytes());
-                }
-                None => std::process::exit(2),
-            }
-            return;
-        }
-    }
     #[cfg(target_os = "macos")]
     if std::env::args().nth(1).as_deref() == Some("--ax-check") {
         println!("{}", if sys::alerts::accessibility_granted() { "yes" } else { "no" });
@@ -174,18 +188,35 @@ fn main() {
     let gpu = sys::Gpu::new();
     let mut batteries = sys::Batteries::new();
     let mut notifications = sys::Notifications::new();
+    let mut thermal = sys::extra::Thermal::new();
+    let (mut disk, mut disk_at): (Option<(u64, u64)>, Option<Instant>) = (None, None);
+    let (mut temp, mut temp_at): (Option<f64>, Option<Instant>) = (None, None);
+    {
+        let (shared, settings) = (shared.clone(), settings.clone());
+        spawn("ping", move || {
+            ping::run(move || someone_looks(&shared, &settings))
+        });
+    }
 
     let mut prev: Option<Counters> = None;
     loop {
         if power::stopping() {
             log("stopping: telling the phone the computer goes away");
+            // Under launchd nothing keeps what the server writes; who stopped it is worth keeping.
+            #[cfg(target_os = "macos")]
+            {
+                let pid = sys::power::stop_sender();
+                let who = util::run("/bin/ps", &["-o", "command=", "-p", &pid.to_string()], Duration::from_secs(2)).map(|(_, out)| out.trim().to_string()).unwrap_or_default();
+                let line = format!("{} stopped by pid {pid}: {who}\n", now_ms());
+                let path = format!("{}/stops.log", data_dir());
+                let _ = fs::OpenOptions::new().create(true).append(true).open(&path).and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+            }
             power::wait_for_poll(now_ms());
             std::process::exit(0);
         }
         shared.procs.forget_when_idle();
         let interval = settings.interval();
-        let last = shared.last_request_ms.load(Ordering::Relaxed);
-        let active = last != 0 && now_ms().saturating_sub(last) <= settings.idle_after().as_millis() as u64;
+        let active = someone_looks(&shared, &settings);
         if !active {
             // The sample is dropped so that the next poll gets 503, not numbers from before the pause.
             if prev.take().is_some() {
@@ -195,15 +226,24 @@ fn main() {
             shared.wait_for_request(Duration::from_secs(1));
             continue;
         }
-        let Some((prev_cpu, prev_net, prev_at)) = prev.take() else {
-            prev = Some((machine.cpu_ticks(), sys::net_counters(), Instant::now()));
+        let Some((prev_cpu, prev_net, prev_disk, prev_at)) = prev.take() else {
+            prev = Some((machine.cpu_ticks(), sys::net_counters(), sys::extra::disk_counters(), Instant::now()));
             nap(Duration::from_millis(250));
             continue;
         };
 
         let cpu = machine.cpu_ticks();
         let net = sys::net_counters();
+        let disk_now = sys::extra::disk_counters();
         let at = Instant::now();
+        if disk_at.is_none_or(|t| t.elapsed() >= DISK_EVERY) {
+            disk = sys::extra::disk();
+            disk_at = Some(at);
+        }
+        if temp_at.is_none_or(|t| t.elapsed() >= TEMP_EVERY) {
+            temp = thermal.celsius();
+            temp_at = Some(at);
+        }
         let seconds = at.duration_since(prev_at).as_secs_f64().max(0.001);
         let (rx, tx) = load::net_delta(&prev_net, &net);
         let head = head_json(&Load {
@@ -218,11 +258,19 @@ fn main() {
             ram_total,
             down_bps: rx as f64 / seconds,
             up_bps: tx as f64 / seconds,
+            disk,
+            disk_rates: match (prev_disk, disk_now) {
+                (Some((r0, w0)), Some((r1, w1))) => Some((r1.saturating_sub(r0) as f64 / seconds, w1.saturating_sub(w0) as f64 / seconds)),
+                _ => None,
+            },
+            uptime: sys::extra::uptime(),
+            temp,
+            ping: ping::last(),
             batteries: batteries.refresh(),
         });
         let (short, full) = if settings.alerts.load(Ordering::Relaxed) { notifications.json() } else { (String::new(), String::new()) };
         *shared.sample.lock().unwrap_or_else(|e| e.into_inner()) = Some(http::Sample { head, alerts: short, alerts_full: full });
-        prev = Some((cpu, net, at));
+        prev = Some((cpu, net, disk_now, at));
         nap(interval.saturating_sub(at.elapsed()));
     }
 }
@@ -245,21 +293,28 @@ mod tests {
             ram_total: 16,
             down_bps: 1500.4,
             up_bps: 0.0,
+            disk: Some((100, 40)),
+            disk_rates: Some((2048.4, 0.0)),
+            uptime: Some(3600),
+            temp: Some(61.6),
+            ping: None,
             batteries: "[]",
         };
         let alerts = "\"alerts\":[{\"id\":7}],";
         let sample = http::Sample { head: head_json(&load), alerts: alerts.into(), alerts_full: "\"alerts\":null,".into() };
         assert_eq!(
-            sample.json(false, "null"),
+            sample.json(false, "null", "[]"),
             format!(
                 "{{\"ts\":1700000000000,\"interval_ms\":1000,\"mac\":\"awake\",\"os\":\"{}\",\"name\":\"Studio\",\"cpu\":{{\"name\":\"Apple M4\",\"pct\":12.3}},\"gpu\":{{\"pct\":9,\"mem_used\":1048576}},\
-                 \"ram\":{{\"used\":8,\"total\":16,\"pct\":50.0}},\"net\":{{\"down_bps\":1500,\"up_bps\":0}},\"batteries\":[],\
-                 \"alerts\":[{{\"id\":7}}],\"weather\":null}}",
+                 \"ram\":{{\"used\":8,\"total\":16,\"pct\":50.0}},\"net\":{{\"down_bps\":1500,\"up_bps\":0}},\
+                 \"disk\":{{\"total\":100,\"free\":40,\"read_bps\":2048,\"write_bps\":0}},\"uptime\":3600,\"temp\":62,\"ping\":null,\"batteries\":[],\
+                 \"alerts\":[{{\"id\":7}}],\"pushed\":[],\"weather\":null}}",
                 sys::OS
             )
         );
-        assert!(sample.json(true, "{}").ends_with("\"batteries\":[],\"alerts\":null,\"weather\":{}}"));
-        let none = Load { gpu: None, ram_total: 0, ..load };
+        assert!(sample.json(true, "{}", "[]").ends_with("\"batteries\":[],\"alerts\":null,\"pushed\":[],\"weather\":{}}"));
+        let none = Load { gpu: None, ram_total: 0, disk: None, uptime: None, temp: None, ..load };
         assert!(head_json(&none).contains("\"gpu\":null,\"ram\":{\"used\":8,\"total\":0,\"pct\":0.0}"));
+        assert!(head_json(&none).contains("\"disk\":null,\"uptime\":null,\"temp\":null,\"ping\":null,"));
     }
 }
