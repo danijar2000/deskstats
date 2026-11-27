@@ -10,7 +10,10 @@ use std::time::{Duration, Instant};
 
 const DIALOG: Duration = Duration::from_secs(60);
 const FORGET_AFTER: Duration = Duration::from_secs(90);
+/// The pause after a refusal doubles with every refusal in a row, so that a device on the network cannot keep
+/// putting the question on the screen.
 const AFTER_DENIAL: Duration = Duration::from_secs(5);
+const LONGEST_PAUSE: Duration = Duration::from_secs(600);
 pub const WAIT: Duration = Duration::from_secs(20);
 
 /// The six digits both screens show. Both public keys go in, so a swapped key changes the code.
@@ -37,9 +40,13 @@ struct Pending {
     answer: Answer,
 }
 
+/// When the last refusal was, and how many came in a row.
+type Refused = (Instant, u32);
+
 #[derive(Default)]
 pub struct Pairing {
-    pending: Mutex<(Option<Pending>, Option<Instant>)>,
+    /// The pairing under way, and the time of the last refusal with the number of refusals in a row.
+    pending: Mutex<(Option<Pending>, Option<Refused>)>,
     decided: Condvar,
 }
 
@@ -65,7 +72,7 @@ impl Pairing {
                 return Start::Busy;
             }
         }
-        if state.1.is_some_and(|denied| denied.elapsed() < AFTER_DENIAL) {
+        if state.1.is_some_and(|(denied, times)| denied.elapsed() < pause(times)) {
             return Start::Busy;
         }
         let Some(key) = EcKey::new() else { return Start::BadKey };
@@ -80,9 +87,7 @@ impl Pairing {
         let mut state = self.pending.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(p) = state.0.as_mut().filter(|p| p.session == session && p.answer == Answer::Waiting) {
             p.answer = if allowed { Answer::Allowed } else { Answer::Denied };
-            if !allowed {
-                state.1 = Some(Instant::now());
-            }
+            state.1 = if allowed { None } else { Some((Instant::now(), state.1.map_or(1, |(_, times)| times.saturating_add(1)))) };
         }
         self.decided.notify_all();
     }
@@ -114,6 +119,11 @@ impl Pairing {
             state = self.decided.wait_timeout(state, left).unwrap_or_else(|e| e.into_inner()).0;
         }
     }
+}
+
+/// How long to refuse new pairings after [times] refusals in a row.
+fn pause(times: u32) -> Duration {
+    AFTER_DENIAL.saturating_mul(1 << times.saturating_sub(1).min(16)).min(LONGEST_PAUSE)
 }
 
 /// Asks the user of this computer in a dialog; true only for a click on Allow.
@@ -224,6 +234,14 @@ mod tests {
         assert!(matches!(pairing.wait(&session, "abc", Duration::ZERO), Outcome::Denied));
         assert!(matches!(pairing.start(&phone.public), Start::Busy));
         assert!(matches!(pairing.start(&[4u8; 65]), Start::Busy));
+    }
+
+    #[test]
+    fn the_pause_grows_with_refusals() {
+        assert_eq!(pause(1), Duration::from_secs(5));
+        assert_eq!(pause(2), Duration::from_secs(10));
+        assert_eq!(pause(4), Duration::from_secs(40));
+        assert_eq!(pause(40), LONGEST_PAUSE);
     }
 
     #[test]

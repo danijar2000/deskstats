@@ -59,7 +59,10 @@ jobs:
             server/target/x86_64-apple-darwin/release/deskstats
           cp server/install.sh "$dir/"
           cp server/icon/AppIcon.icns "$dir/icon/"
-          sed -n 's/^version = "\(.*\)"/\1/p' server/Cargo.toml | head -1 > "$dir/VERSION"
+          # The version of the tag, as the programs have it; Cargo.toml only for builds without a tag.
+          version="${DESKSTATS_VERSION#v}"
+          [ -n "$version" ] || version="$(sed -n 's/^version = "\(.*\)"/\1/p' server/Cargo.toml | head -1)"
+          printf '%s\n' "$version" > "$dir/VERSION"
           lipo -create -output "$dir/deskstats-ui" \
             ui/target/aarch64-apple-darwin/release/deskstats-ui \
             ui/target/x86_64-apple-darwin/release/deskstats-ui
@@ -148,7 +151,10 @@ jobs:
           cp server/target/${{ matrix.arch }}-unknown-linux-musl/release/deskstats "$dir/"
           cp ui/target/release/deskstats-ui "$dir/"
           cp server/install-linux.sh "$dir/install.sh"
-          sed -n 's/^version = "\(.*\)"/\1/p' server/Cargo.toml | head -1 > "$dir/VERSION"
+          # The version of the tag, as the programs have it; Cargo.toml only for builds without a tag.
+          version="${DESKSTATS_VERSION#v}"
+          [ -n "$version" ] || version="$(sed -n 's/^version = "\(.*\)"/\1/p' server/Cargo.toml | head -1)"
+          printf '%s\n' "$version" > "$dir/VERSION"
           tar -czf deskstats-server-linux-${{ matrix.arch }}.tar.gz "$dir"
       - uses: actions/upload-artifact@v4
         with:
@@ -252,8 +258,25 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
+      # Every release is signed with the same key, kept in the secrets of the repository, so that a new release
+      # installs over the old one. A build of a tag without the key fails rather than sign with a throwaway one.
+      - name: Signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE" ]; then
+            printf '%s' "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "DESKSTATS_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          elif [ -n "$DESKSTATS_VERSION" ]; then
+            echo "::error::the secret ANDROID_KEYSTORE_BASE64 is missing: a release must be signed with the release key"
+            exit 1
+          fi
       - name: Build and lint
         working-directory: android
+        env:
+          DESKSTATS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          DESKSTATS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          DESKSTATS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew --no-daemon :app:lintDebug :app:assembleRelease
       - name: Rename
         run: cp android/app/build/outputs/apk/release/app-release.apk deskstats.apk
