@@ -16,8 +16,10 @@ $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $base = 'https://github.com/danijar2000/deskstats/releases/latest/download'
 
-if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -and $env:PROCESSOR_ARCHITEW6432 -ne 'AMD64') {
-    throw 'setup.ps1: there is a build for 64-bit Intel/AMD Windows only; build from source on other machines'
+# The build is for 64-bit Intel/AMD; Windows 11 on ARM runs it as it is (it translates such programs itself).
+$arch = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+if ($arch -ne 'AMD64' -and $arch -ne 'ARM64') {
+    throw 'setup.ps1: there is a build for 64-bit Windows only (Intel/AMD, and ARM through its emulation); build from source on other machines'
 }
 
 # Runs adb and returns everything it printed. Windows PowerShell 5.1 turns what a program writes to its error

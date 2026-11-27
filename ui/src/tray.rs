@@ -3,6 +3,9 @@
 
 /// Opens the window, or brings the open one to the front.
 fn open_window() {
+    // The click gave this program the right to bring a window to the front; Windows lets it pass that on.
+    #[cfg(windows)]
+    crate::window::allow_any_to_come_forward();
     if let Ok(me) = std::env::current_exe() {
         let _ = std::process::Command::new(me).spawn();
     }
@@ -49,7 +52,11 @@ pub fn run() {
                     builder = builder.with_menu_on_left_click(false);
                 }
                 match builder.build() {
-                    Ok(icon) => self.icon = Some(icon),
+                    Ok(icon) => {
+                        self.icon = Some(icon);
+                        #[cfg(windows)]
+                        std::thread::spawn(promote);
+                    }
                     Err(_) => event_loop.exit(),
                 }
             }
@@ -89,6 +96,40 @@ pub fn run() {
     let w = crate::text::words(crate::text::system_language());
     let mut tray = Tray { icon: None, open: MenuItem::new(w.open, true, None), quit: MenuItem::new(w.quit, true, None) };
     let _ = event_loop.run_app(&mut tray);
+}
+
+/// Windows 11 puts a new icon under the ^ arrow by the clock, and a click there never reaches the program (the
+/// library asks where the icon is first, and Windows does not say for a hidden one). So the icon is put on the
+/// taskbar itself, as the user could do in Settings: once Windows has noted it, a few seconds after it appears.
+/// This is done once: a mark in the data folder remembers it, so an icon the user hides again stays hidden.
+#[cfg(windows)]
+fn promote() {
+    use std::os::windows::process::CommandExt;
+    let dir = std::path::PathBuf::from(crate::server::data_dir());
+    let mark = dir.join("icon-on-taskbar");
+    if mark.exists() {
+        return;
+    }
+    let Ok(me) = std::env::current_exe() else { return };
+    let script = format!(
+        "$me = '{}'; foreach ($k in Get-ChildItem 'HKCU:\\Control Panel\\NotifyIconSettings' -EA 0) {{ \
+         if ((Get-ItemProperty $k.PSPath).ExecutablePath -eq $me) {{ \
+         Set-ItemProperty $k.PSPath IsPromoted 1 -Type DWord; 'done' }} }}",
+        me.display().to_string().replace('\'', "''")
+    );
+    for _ in 0..6 {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        const NO_WINDOW: u32 = 0x0800_0000;
+        let out = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .creation_flags(NO_WINDOW)
+            .output();
+        if out.is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("done")) {
+            let _ = std::fs::create_dir_all(&dir);
+            let _ = std::fs::write(&mark, b"");
+            return;
+        }
+    }
 }
 
 /// Linux: the StatusNotifierItem of KDE and of GNOME with the AppIndicator extension (on by default in Ubuntu).

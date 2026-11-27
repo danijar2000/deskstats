@@ -113,8 +113,19 @@ if ($panel) {
     }
     # Like the server: through Explorer when this window runs as administrator, so that it runs as the user.
     if ($admin) {
+        # Explorer passes no arguments to a program, but it opens a shortcut with them: one with --tray starts
+        # the icon, and then the window.
+        try {
+            $tray = Join-Path $dir 'Deskstats tray.lnk'
+            $link = (New-Object -ComObject WScript.Shell).CreateShortcut($tray)
+            $link.TargetPath = $ui
+            $link.Arguments = '--tray'
+            $link.WorkingDirectory = $dir
+            $link.Save()
+            Start-Process -FilePath (Join-Path $env:WINDIR 'explorer.exe') -ArgumentList "`"$tray`""
+            Start-Sleep -Seconds 1
+        } catch { }
         try { Start-Process -FilePath (Join-Path $env:WINDIR 'explorer.exe') -ArgumentList "`"$ui`"" } catch { }
-        # Explorer opens the window; the icon is started from the key at the next sign-in.
     } else {
         Start-Process -FilePath $ui -ArgumentList '--tray' -WorkingDirectory $dir
     }

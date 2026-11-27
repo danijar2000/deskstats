@@ -29,6 +29,19 @@ pub fn run_snapshot(path: String, theme: Option<String>) {
     open(Some(Snapshot { path, theme, asked: false, at: Instant::now() }));
 }
 
+/// Lets whichever program asks next bring its window to the front (AllowSetForegroundWindow with ASFW_ANY).
+#[cfg(windows)]
+pub fn allow_any_to_come_forward() {
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn AllowSetForegroundWindow(process: u32) -> i32;
+    }
+    // SAFETY: a plain call with a number; it only changes who may take the focus next.
+    unsafe {
+        AllowSetForegroundWindow(u32::MAX);
+    }
+}
+
 struct Snapshot {
     path: String,
     theme: Option<egui::ThemePreference>,
@@ -40,7 +53,10 @@ fn open(snapshot: Option<Snapshot>) {
     // A picture is taken by a window of its own, even while the real one is open.
     let port = if snapshot.is_some() { 0 } else { WINDOW_PORT };
     let Ok(listener) = TcpListener::bind((Ipv4Addr::LOCALHOST, port)) else {
-        // Already open: it is asked to come to the front.
+        // Already open: it is asked to come to the front. On Windows only a program the user just used may do
+        // that, which this one is and the open window is not, so it is let.
+        #[cfg(windows)]
+        allow_any_to_come_forward();
         if let Ok(mut stream) = TcpStream::connect((Ipv4Addr::LOCALHOST, WINDOW_PORT)) {
             let _ = stream.write_all(b"show");
         }
@@ -73,6 +89,7 @@ struct App {
     checked: Instant,
     dark_checked: Option<Instant>,
     snapshot: Option<Snapshot>,
+    fitted: bool,
 }
 
 impl App {
@@ -106,6 +123,7 @@ impl App {
             checked: Instant::now(),
             dark_checked: None,
             snapshot,
+            fitted: false,
         };
         app.refresh(&cc.egui_ctx);
         app
@@ -188,6 +206,17 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = &ui.ctx().clone();
         self.follow_system_theme(ctx);
+        if !self.fitted && self.snapshot.is_none() {
+            // On a low screen the window would reach under the taskbar: it is made to fit, once it knows the screen.
+            if let Some(screen) = ctx.input(|i| i.viewport().monitor_size) {
+                self.fitted = true;
+                let high = (screen.y - 120.0).clamp(480.0, 720.0);
+                if high < 720.0 {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(380.0, high)));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2((screen.x - 380.0) / 2.0, 30.0)));
+                }
+            }
+        }
         if self.shown.swap(false, Ordering::Relaxed) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
