@@ -31,13 +31,9 @@ Sur l'ordinateur : une commande pour installer, deux autorisations et le panneau
 
 ## Prérequis
 
-- **Un Mac** sous macOS 11 ou ultérieur (Apple silicon ou Intel).
-- **Un téléphone Android** sous Android 2.3 ou ultérieur. La liaison USB nécessite Android 5.0 ;
-  les téléphones plus anciens n'utilisent que le Wi‑Fi.
-- **adb** sur le Mac pour la liaison USB : `brew install android-platform-tools`.
-- **Le débogage USB** sur le téléphone : Paramètres → À propos du téléphone, touchez sept fois
-  « Numéro de build », puis Paramètres → Options pour les développeurs → Débogage USB. Autorisez
-  le débogage pour ce Mac quand le téléphone le demande.
+- **Un ordinateur** : un Mac sous macOS 11 ou plus récent (Apple silicon ou Intel), Windows 10 ou plus récent, ou Linux.
+- **Un téléphone Android** sous Android 2.3 ou plus récent. L'app tient en un fichier : ouvrez [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk) sur le téléphone, autorisez le navigateur à installer des apps quand le téléphone le demande, puis installez-la. Ensuite elle cherche elle-même une nouvelle version sur GitHub et propose de se mettre à jour.
+- **En option, un câble USB** : le téléphone fonctionne alors aussi sans Wi‑Fi et l'ordinateur l'appaire tout seul. Il faut adb sur l'ordinateur (`brew install android-platform-tools` sur un Mac), le débogage USB sur le téléphone (Paramètres → À propos du téléphone, touchez sept fois « Numéro de build », puis Paramètres → Options pour les développeurs → Débogage USB) et Android 5.0 ou plus récent.
 
 ## Installation
 

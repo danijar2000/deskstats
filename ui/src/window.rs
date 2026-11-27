@@ -154,6 +154,11 @@ struct App {
     state: Arc<Mutex<Server>>,
     asking: Arc<AtomicBool>,
     shown: Arc<AtomicBool>,
+    /// A newer release on GitHub, when there is one; and whether the update was started.
+    release: Arc<Mutex<Option<String>>>,
+    updating: bool,
+    /// The log of an update that did not take, to show once.
+    update_failed: Option<String>,
     /// The latest numbers, and those of the last minutes.
     stats: Arc<Mutex<Option<Stats>>>,
     history: Arc<Mutex<VecDeque<Point>>>,
@@ -203,6 +208,9 @@ impl App {
             shown,
             stats: Arc::default(),
             history: Arc::default(),
+            release: Arc::default(),
+            updating: false,
+            update_failed: server::failed_update(),
             anchor,
             toggled,
             focused_once: false,
@@ -216,6 +224,13 @@ impl App {
             snapshot,
         };
         app.refresh(&cc.egui_ctx);
+        {
+            let (release, ctx) = (app.release.clone(), cc.egui_ctx.clone());
+            std::thread::spawn(move || {
+                *release.lock().unwrap_or_else(|e| e.into_inner()) = server::newer_release();
+                ctx.request_repaint();
+            });
+        }
         app
     }
 
@@ -358,8 +373,30 @@ impl eframe::App for App {
         let room = if up { top - 40.0 } else { screen.y - top - 40.0 };
         let mut content_high = 0.0;
         egui::CentralPanel::default().frame(frame).show(ui, |ui| {
+            let release = self.release.lock().unwrap_or_else(|e| e.into_inner()).clone();
             let mut content = |ui: &mut egui::Ui| {
                 header(ui, w, &state);
+                if let Some(log) = &self.update_failed {
+                    ui.add_space(8.0);
+                    inner_card(ui, |ui| {
+                        ui.add(egui::Label::new(RichText::new(w.update_failed.replace("{}", log)).color(RED).size(12.0)).wrap());
+                    });
+                }
+                if let Some(version) = &release {
+                    ui.add_space(8.0);
+                    inner_card(ui, |ui| {
+                        ui.add(egui::Label::new(RichText::new(w.update_available.replace("{}", version.trim_start_matches('v'))).strong()).wrap());
+                        if !self.updating && ui.button(RichText::new(w.update).color(BLUE)).clicked() {
+                            self.updating = server::update();
+                            if !self.updating {
+                                *self.failed.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now());
+                            }
+                        }
+                        if self.updating {
+                            ui.label(RichText::new(w.updating).size(12.0).weak());
+                        }
+                    });
+                }
                 if let Some(n) = &stats {
                     ui.add_space(10.0);
                     rings(ui, w, n);

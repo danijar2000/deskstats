@@ -183,4 +183,14 @@
     <string name="ping_ms">%d мс</string>
     <string name="focus_left">Фокус %s</string>
     <string name="focus_done">Фокус окончен — отдохните</string>
+    <string name="update_check">Проверить обновления</string>
+    <string name="update_title">Доступна версия Deskstats %s</string>
+    <string name="update_message">Сейчас стоит %1$s. Обновление скачает %2$s МБ с GitHub и откроет установщик.</string>
+    <string name="update_now">Обновить</string>
+    <string name="update_later">Позже</string>
+    <string name="update_downloading">Загрузка… %d%%</string>
+    <string name="update_failed">Не удалось обновить: %s</string>
+    <string name="update_latest">Deskstats %s — последняя версия</string>
+    <string name="update_allow">Разрешите Deskstats устанавливать приложения и вернитесь: обновление предложится снова</string>
+    <string name="update_no_storage">на телефоне нет общей памяти</string>
 </resources>

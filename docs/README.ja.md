@@ -29,12 +29,9 @@
 
 ## 必要なもの
 
-- **Mac**：macOS 11 以降（Apple シリコンまたは Intel）。
-- **Android スマートフォン**：Android 2.3 以降。USB 接続には Android 5.0 が必要です。古い機種は
-  Wi‑Fi のみで使えます。
-- USB 接続用に Mac に **adb**：`brew install android-platform-tools`。
-- スマートフォンで **USB デバッグ**を有効に：設定 → デバイス情報で「ビルド番号」を 7 回タップし、
-  設定 → 開発者向けオプション → USB デバッグ をオンにします。確認が表示されたら、この Mac からのデバッグを許可してください。
+- **コンピュータ**：macOS 11 以降の Mac（Apple silicon または Intel）、Windows 10 以降、または Linux。
+- **Android スマートフォン**（Android 2.3 以降）。アプリはファイル1つです。スマートフォンで [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk) を開き、確認が出たらブラウザにアプリのインストールを許可してインストールします。その後は GitHub で新しいバージョンを自分で確認し、更新を提案します。
+- **任意：USB ケーブル**：Wi‑Fi がなくても使えるようになり、コンピュータが自動でペアリングします。コンピュータに adb（Mac では `brew install android-platform-tools`）、スマートフォンで USB デバッグ（設定 → デバイス情報 → 「ビルド番号」を7回タップし、設定 → 開発者向けオプション → USB デバッグ）、Android 5.0 以降が必要です。
 
 ## インストール
 

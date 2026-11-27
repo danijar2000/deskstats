@@ -31,13 +31,9 @@ Auf dem Computer: Installation mit einem Befehl, zwei Berechtigungen und das Pan
 
 ## Voraussetzungen
 
-- **Ein Mac** mit macOS 11 oder neuer (Apple Silicon oder Intel).
-- **Ein Android-Telefon** mit Android 2.3 oder neuer. Die USB-Verbindung braucht Android 5.0;
-  ältere Telefone nutzen nur WLAN.
-- **adb** auf dem Mac für die USB-Verbindung: `brew install android-platform-tools`.
-- **USB-Debugging** auf dem Telefon: Einstellungen → Über das Telefon, siebenmal auf
-  „Build-Nummer“ tippen, dann Einstellungen → Entwickleroptionen → USB-Debugging. Erlaube das
-  Debugging für diesen Mac, wenn das Telefon fragt.
+- **Ein Computer**: ein Mac mit macOS 11 oder neuer (Apple silicon oder Intel), Windows 10 oder neuer oder Linux.
+- **Ein Android-Telefon** mit Android 2.3 oder neuer. Die App ist eine Datei: [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk) auf dem Telefon öffnen, dem Browser das Installieren von Apps erlauben, wenn das Telefon fragt, und installieren. Danach sucht sie selbst auf GitHub nach einer neuen Version und bietet das Update an.
+- **Optional ein USB-Kabel**: Dann funktioniert das Telefon auch ohne WLAN, und der Computer koppelt es von selbst. Dafür braucht es adb auf dem Computer (`brew install android-platform-tools` auf dem Mac), USB-Debugging auf dem Telefon (Einstellungen → Über das Telefon, siebenmal auf „Build-Nummer“ tippen, dann Einstellungen → Entwickleroptionen → USB-Debugging) und Android 5.0 oder neuer.
 
 ## Installation
 

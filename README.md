@@ -31,12 +31,9 @@ On the computer: one command installs it, two permissions, and the panel under t
 
 ## Requirements
 
-- **A Mac** with macOS 11 or later (Apple silicon or Intel).
-- **An Android phone** with Android 2.3 or later. The USB link needs Android 5.0; older phones
-  use Wi‑Fi only.
-- **adb** on the Mac for the USB link: `brew install android-platform-tools`.
-- **USB debugging** on the phone: Settings → About phone, tap "Build number" seven times, then
-  Settings → Developer options → USB debugging. Allow debugging for this Mac when the phone asks.
+- **A computer**: a Mac with macOS 11 or later (Apple silicon or Intel), Windows 10 or later, or Linux.
+- **An Android phone** with Android 2.3 or later. The app is one file: open [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk) on the phone, allow your browser to install apps when the phone asks, and install it. Later it checks GitHub for a new version itself and offers to update.
+- **Optional, a USB cable**: the phone then also works without Wi‑Fi, and the computer pairs it by itself. It needs adb on the computer (`brew install android-platform-tools` on a Mac) and USB debugging on the phone (Settings → About phone, tap "Build number" seven times, then Settings → Developer options → USB debugging), and Android 5.0 or later.
 
 ## Install
 

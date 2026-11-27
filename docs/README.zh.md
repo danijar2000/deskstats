@@ -25,13 +25,11 @@
 
 [观看 MP4](phone.mp4)
 
-## 系统要求
+## 要求
 
-- **Mac**：macOS 11 或更高版本（Apple 芯片或 Intel）。
-- **Android 手机**：Android 2.3 或更高版本。USB 连接需要 Android 5.0；更旧的手机只能用 Wi‑Fi。
-- Mac 上的 **adb**，用于 USB 连接：`brew install android-platform-tools`。
-- 手机上开启 **USB 调试**：设置 → 关于手机，连续点按"版本号"七次，然后进入设置 → 开发者选项 →
-  USB 调试。手机询问时，允许这台 Mac 进行调试。
+- **一台电脑**：macOS 11 或更高版本的 Mac（Apple silicon 或 Intel）、Windows 10 或更高版本，或 Linux。
+- **一部 Android 手机**，Android 2.3 或更高版本。应用只有一个文件：在手机上打开 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)，在手机询问时允许浏览器安装应用，然后安装。之后它会自己在 GitHub 上检查新版本并提示更新。
+- **可选：USB 数据线**：这样手机没有 Wi‑Fi 也能用，电脑会自动与它配对。需要电脑上的 adb（Mac 上执行 `brew install android-platform-tools`）、手机上的 USB 调试（设置 → 关于手机，点按「版本号」七次，然后设置 → 开发者选项 → USB 调试），以及 Android 5.0 或更高版本。
 
 ## 安装
 

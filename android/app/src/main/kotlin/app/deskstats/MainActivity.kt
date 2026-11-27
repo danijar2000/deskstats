@@ -574,6 +574,7 @@ class MainActivity : Activity(), Page.Host {
         restartIdle()
         startPolling()
         listenForBeacon()
+        Updater.check(this, ui, manual = false)
     }
 
     private fun listenForBeacon() {

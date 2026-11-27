@@ -31,13 +31,9 @@ En el ordenador: se instala con un comando, dos permisos y el panel bajo el icon
 
 ## Requisitos
 
-- **Un Mac** con macOS 11 o posterior (Apple silicon o Intel).
-- **Un teléfono Android** con Android 2.3 o posterior. La conexión USB requiere Android 5.0; los
-  teléfonos más antiguos solo usan Wi‑Fi.
-- **adb** en el Mac para la conexión USB: `brew install android-platform-tools`.
-- **Depuración por USB** en el teléfono: Ajustes → Información del teléfono, toca "Número de
-  compilación" siete veces y luego Ajustes → Opciones para desarrolladores → Depuración por USB.
-  Permite la depuración para este Mac cuando el teléfono lo pregunte.
+- **Un ordenador**: un Mac con macOS 11 o posterior (Apple silicon o Intel), Windows 10 o posterior, o Linux.
+- **Un teléfono Android** con Android 2.3 o posterior. La app es un solo archivo: abre [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk) en el teléfono, permite al navegador instalar apps cuando el teléfono lo pida e instálala. Después busca sola una versión nueva en GitHub y ofrece actualizar.
+- **Opcional, un cable USB**: así el teléfono funciona también sin Wi‑Fi y el ordenador lo empareja solo. Hace falta adb en el ordenador (`brew install android-platform-tools` en un Mac), la depuración USB en el teléfono (Ajustes → Acerca del teléfono, toca «Número de compilación» siete veces, luego Ajustes → Opciones de desarrollador → Depuración USB) y Android 5.0 o posterior.
 
 ## Instalación
 

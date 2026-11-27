@@ -183,4 +183,14 @@
     <string name="ping_ms">%d ms</string>
     <string name="focus_left">集中 %s</string>
     <string name="focus_done">集中終了。休憩しましょう</string>
+    <string name="update_check">アップデートを確認</string>
+    <string name="update_title">Deskstats %s が利用できます</string>
+    <string name="update_message">現在のバージョンは %1$s です。GitHub から %2$s MB をダウンロードしてインストーラを開きます。</string>
+    <string name="update_now">アップデート</string>
+    <string name="update_later">後で</string>
+    <string name="update_downloading">ダウンロード中… %d%%</string>
+    <string name="update_failed">アップデートできませんでした：%s</string>
+    <string name="update_latest">Deskstats %s は最新バージョンです</string>
+    <string name="update_allow">Deskstats にアプリのインストールを許可して戻ってください。アップデートが再度表示されます</string>
+    <string name="update_no_storage">スマートフォンに共有ストレージがありません</string>
 </resources>

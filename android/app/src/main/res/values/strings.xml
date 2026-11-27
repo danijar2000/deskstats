@@ -196,4 +196,14 @@
     <string name="ping_ms">%d ms</string>
     <string name="focus_left">Focus %s</string>
     <string name="focus_done">Focus done — take a break</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_title">Deskstats %s is available</string>
+    <string name="update_message">This is %1$s. The update downloads %2$s MB from GitHub and opens the installer.</string>
+    <string name="update_now">Update</string>
+    <string name="update_later">Later</string>
+    <string name="update_downloading">Downloading… %d%%</string>
+    <string name="update_failed">Could not update: %s</string>
+    <string name="update_latest">Deskstats %s is the latest version</string>
+    <string name="update_allow">Allow Deskstats to install apps, then come back: the update is offered again</string>
+    <string name="update_no_storage">there is no shared storage on this phone</string>
 </resources>
