@@ -380,14 +380,14 @@ pub mod adb {
     const USB_DEVICE: GUID = GUID { data1: 0xA5DC_BF10, data2: 0x6530, data3: 0x11D2, data4: [0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED] };
 
     pub fn candidates() -> Vec<String> {
-        let folder = |name: &str| std::env::var(name).unwrap_or_default();
+        // Only folders of this user: a folder such as C:\\platform-tools may be made by any user of the computer,
+        // and the server would run whatever adb.exe they put there.
         let mut list: Vec<String> = super::find_in_path("adb.exe").into_iter().collect();
-        list.extend([
-            format!("{}\\Android\\Sdk\\platform-tools\\adb.exe", folder("LOCALAPPDATA")),
-            format!("{}\\Microsoft\\WinGet\\Links\\adb.exe", folder("LOCALAPPDATA")),
-            format!("{}\\scoop\\shims\\adb.exe", folder("USERPROFILE")),
-            String::from("C:\\platform-tools\\adb.exe"),
-        ]);
+        for (name, rest) in [("LOCALAPPDATA", "Android\\Sdk\\platform-tools\\adb.exe"), ("LOCALAPPDATA", "Microsoft\\WinGet\\Links\\adb.exe"), ("USERPROFILE", "scoop\\shims\\adb.exe")] {
+            if let Some(folder) = std::env::var(name).ok().filter(|f| !f.is_empty()) {
+                list.push(format!("{folder}\\{rest}"));
+            }
+        }
         list
     }
 

@@ -92,7 +92,7 @@ try {
     if ($NoPhone) { return }
 
     $adb = (Get-Command adb.exe -ErrorAction SilentlyContinue).Source
-    foreach ($candidate in @("$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe", "$env:LOCALAPPDATA\Microsoft\WinGet\Links\adb.exe", "$env:USERPROFILE\scoop\shims\adb.exe", 'C:\platform-tools\adb.exe')) {
+    foreach ($candidate in @("$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe", "$env:LOCALAPPDATA\Microsoft\WinGet\Links\adb.exe", "$env:USERPROFILE\scoop\shims\adb.exe")) {
         if (-not $adb -and (Test-Path $candidate)) { $adb = $candidate }
     }
     if (-not $adb) {

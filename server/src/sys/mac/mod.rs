@@ -51,7 +51,7 @@ pub fn log_line(line: &str) {
 pub fn ask(text: &str, deny: &str, allow: &str, wait: Duration) -> bool {
     let script = [
         "on run argv",
-        "set r to display dialog (item 1 of argv) with title \"Deskstats\" buttons {item 2 of argv, item 3 of argv} default button 2 with icon caution giving up after (item 4 of argv as integer)",
+        "set r to display dialog (item 1 of argv) with title \"Deskstats\" buttons {item 2 of argv, item 3 of argv} default button 1 with icon caution giving up after (item 4 of argv as integer)",
         "if gave up of r then return \"\"",
         "return button returned of r",
         "end run",

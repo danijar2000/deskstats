@@ -46,6 +46,8 @@ pub struct Shared {
     pub last_local_ms: AtomicU64,
     /// Values that programs on this computer pushed (GET /push?k=…&v=…): key, value and when, newest last.
     pub pushed: Mutex<Vec<(String, String, u64)>>,
+    /// The last request for data that came over Wi‑Fi.
+    pub last_lan_ms: AtomicU64,
     /// Whether adb was found when the server started, for the window on this computer.
     pub adb: std::sync::atomic::AtomicBool,
     pub token: String,
@@ -75,6 +77,7 @@ impl Shared {
             last_window_ms: AtomicU64::new(0),
             last_local_ms: AtomicU64::new(0),
             pushed: Mutex::new(Vec::new()),
+            last_lan_ms: AtomicU64::new(0),
             adb: std::sync::atomic::AtomicBool::new(false),
             token,
             keys,
@@ -212,6 +215,9 @@ pub fn param<'a>(query: &'a str, name: &str) -> Option<&'a str> {
     query.split('&').filter_map(|pair| pair.split_once('=')).find(|(key, _)| *key == name).map(|(_, value)| value)
 }
 
+/// How long after a request over Wi‑Fi a phone on the cable cannot switch Wi‑Fi off.
+const LAN_IN_USE_MS: u64 = 60_000;
+
 fn error_json(text: &str) -> String {
     format!("{{\"error\":\"{text}\"}}")
 }
@@ -219,6 +225,16 @@ fn error_json(text: &str) -> String {
 fn answer(target: &str, shared: &Shared, local: bool) -> (u16, String) {
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
     if path == "/config" {
+        // Every phone sends all its settings. One on the cable whose own Wi‑Fi switch is off must not cut off another
+        // phone that reads this computer over Wi‑Fi right now.
+        let in_use = now_ms().saturating_sub(shared.last_lan_ms.load(Ordering::Relaxed)) < LAN_IN_USE_MS;
+        let kept: String;
+        let query = if local && in_use && param(query, "lan").is_some_and(|v| v == "0" || v == "false") {
+            kept = query.split('&').filter(|p| !p.starts_with("lan=")).collect::<Vec<_>>().join("&");
+            &kept
+        } else {
+            query
+        };
         shared.settings.apply(query);
         shared.settings.save();
         shared.weather.set_every(Duration::from_secs(shared.settings.weather_min.load(Ordering::Relaxed) * 60));
@@ -258,7 +274,9 @@ fn answer(target: &str, shared: &Shared, local: bool) -> (u16, String) {
     if woken {
         shared.ring();
     }
-    if local && !window {
+    if !local {
+        shared.last_lan_ms.store(now_ms(), Ordering::Relaxed);
+    } else if !window {
         shared.last_local_ms.store(now_ms(), Ordering::Relaxed);
     }
     let json = if crate::power::state() == "sleep" {
@@ -498,6 +516,15 @@ mod tests {
         let s = shared();
         let reply = respond(&parse(sealed(&s, "/config?interval_ms=2000&lan=1").as_bytes()).unwrap(), &s, true);
         assert_eq!(opened(&s, &reply.body), ("200".into(), r#"{"interval_ms":2000,"lan":true,"alerts":true,"weather_min":60}"#.into()));
+        // A phone on the cable cannot switch Wi‑Fi off while another phone reads over it.
+        s.last_lan_ms.store(now_ms(), Ordering::Relaxed);
+        respond(&parse(sealed(&s, "/config?interval_ms=1000&lan=0").as_bytes()).unwrap(), &s, true);
+        assert!(s.settings.lan.load(Ordering::Relaxed));
+        assert_eq!(s.settings.interval_ms.load(Ordering::Relaxed), 1000);
+        // Once nobody has used Wi‑Fi for a while, it can.
+        s.last_lan_ms.store(0, Ordering::Relaxed);
+        respond(&parse(sealed(&s, "/config?lan=0").as_bytes()).unwrap(), &s, true);
+        assert!(!s.settings.lan.load(Ordering::Relaxed));
         let _ = std::fs::remove_file(s.settings.path());
     }
 
@@ -523,6 +550,7 @@ mod tests {
         assert_eq!(s.last_request_ms.load(Ordering::Relaxed), 0);
         assert_eq!(s.last_local_ms.load(Ordering::Relaxed), 0);
         assert!(s.last_window_ms.load(Ordering::Relaxed) > 0);
+        assert_eq!(s.last_lan_ms.load(Ordering::Relaxed), 0);
         // Over Wi-Fi the word counts for nothing: that is a phone.
         answer("/stats?viewer=window", &s, false);
         assert!(s.last_request_ms.load(Ordering::Relaxed) > 0);
