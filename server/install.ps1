@@ -78,9 +78,19 @@ if (-not (Test-Path $built)) { throw "install.ps1: no program to install ($built
 Stop-Server
 Stop-Panel
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
-Copy-Item -Force $built $exe
+# Windows lets go of a program's file a moment after the program has stopped.
+function Copy-Program {
+    param([string]$From, [string]$To)
+    for ($i = 0; ; $i++) {
+        try { Copy-Item -Force $From $To; return } catch {
+            if ($i -ge 20) { throw }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+}
+Copy-Program $built $exe
 $panel = $builtUi -and (Test-Path $builtUi)
-if ($panel) { Copy-Item -Force $builtUi $ui }
+if ($panel) { Copy-Program $builtUi $ui }
 # A fresh Windows profile may not have the key of the programs that start at sign-in yet.
 if (-not (Test-Path $run)) { New-Item -Path $run -Force | Out-Null }
 Set-ItemProperty -Path $run -Name deskstats -Value "`"$exe`""
