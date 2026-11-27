@@ -8,8 +8,6 @@ Turn an old Android phone into a status panel for your Mac: a clock, the weather
 from the Mac and the iPhone, the battery of your mouse and keyboard, and CPU, GPU, memory and
 network load with live charts.
 
-![A Mac with the phone panel beside it](docs/screenshots/hero.png)
-
 - **The Mac side** is a tiny background app: about 4 MB of memory and half a percent of one
   core while the phone is connected, nothing at all when it is not.
 - **The phone** connects over the USB cable or over Wi‑Fi and switches between them by itself.

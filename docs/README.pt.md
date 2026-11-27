@@ -8,8 +8,6 @@ Transforme um celular Android antigo em um painel de status para o seu Mac: rel�
 notificações do Mac e do iPhone, bateria do mouse e do teclado, e carga de CPU, GPU, memória
 e rede com gráficos ao vivo.
 
-![Um Mac com o painel no celular ao lado](screenshots/hero.png)
-
 - **No Mac** roda um app minúsculo em segundo plano: cerca de 4 MB de memória e meio por cento
   de um núcleo enquanto o telefone está conectado, e nada quando não está.
 - **O telefone** se conecta pelo cabo USB ou por Wi‑Fi e alterna entre os dois sozinho.

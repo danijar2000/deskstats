@@ -8,8 +8,6 @@ Transformez un vieux téléphone Android en panneau d'état pour votre Mac : hor
 notifications du Mac et de l'iPhone, batterie de la souris et du clavier, et charge CPU, GPU,
 mémoire et réseau avec des graphiques en direct.
 
-![Un Mac avec le panneau-téléphone à côté](screenshots/hero.png)
-
 - **Côté Mac**, une minuscule app en arrière-plan : environ 4 Mo de mémoire et un demi-pour-cent
   d'un cœur quand le téléphone est connecté, rien du tout sinon.
 - **Le téléphone** se connecte par câble USB ou en Wi‑Fi et passe de l'un à l'autre tout seul.

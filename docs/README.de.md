@@ -8,8 +8,6 @@ Mach aus einem alten Android-Telefon ein Statuspanel für deinen Mac: Uhr, Wette
 vom Mac und vom iPhone, Akkustand von Maus und Tastatur sowie CPU-, GPU-, Speicher- und
 Netzwerklast mit Live-Diagrammen.
 
-![Ein Mac mit dem Telefon-Panel daneben](screenshots/hero.png)
-
 - **Auf dem Mac** läuft eine winzige Hintergrund-App: etwa 4 MB Speicher und ein halbes Prozent
   eines Kerns, solange das Telefon verbunden ist, und gar nichts, wenn nicht.
 - **Das Telefon** verbindet sich per USB-Kabel oder WLAN und wechselt selbstständig zwischen
