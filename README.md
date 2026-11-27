@@ -71,9 +71,9 @@ arrives, remove Deskstats from the list (−) and add `~/Applications/Deskstats.
 
 ### Linux and Windows
 
-The server also runs on Linux (x86-64 and ARM64, any distribution with systemd) and on Windows 10 or later (64-bit). The phone app is the same.
+The server also runs on Linux (x86-64 and ARM64, any distribution with systemd) and on Windows 10 or later (64-bit; on ARM, Windows 11 runs the Intel/AMD build). The phone app is the same.
 
-Linux, in a terminal:
+Linux, in a terminal (a fresh Ubuntu has no curl: `sudo apt install curl` first):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh | bash
