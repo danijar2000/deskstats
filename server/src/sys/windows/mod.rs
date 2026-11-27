@@ -2,6 +2,7 @@
 
 #[path = "../portable.rs"]
 mod portable;
+pub mod extra;
 
 pub use portable::{crypto, ec};
 use std::collections::HashMap;

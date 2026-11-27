@@ -4,6 +4,7 @@
 mod portable;
 
 pub use portable::{crypto, ec};
+pub mod extra;
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::net::Ipv4Addr;

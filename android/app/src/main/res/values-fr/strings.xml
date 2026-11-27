@@ -117,7 +117,7 @@
     <string name="zone_middle">Milieu</string>
     <string name="zone_bottom">Bas</string>
     <string name="block_clock">Horloge et date</string>
-    <string name="block_clock_note">Heure du téléphone dans le fuseau choisi</string>
+    <string name="block_clock_note">Heure du téléphone dans le fuseau choisi Restez appuyé pour lancer ou arrêter un minuteur de concentration de 25 minutes.</string>
     <string name="block_weather">Météo</string>
     <string name="block_weather_note">Météo de la ville choisie</string>
     <string name="block_alerts">Notifications</string>
@@ -173,4 +173,14 @@
         <item>Orage</item>
         <item>Nuageux</item>
     </string-array>
+    <string name="block_disk">Disque</string>
+    <string name="block_disk_note">Espace libre du disque système et vitesse de lecture et d’écriture</string>
+    <string name="disk_io">lecture %1$s · écriture %2$s</string>
+    <string name="disk_free">%s libres</string>
+    <string name="uptime">allumé depuis %s</string>
+    <string name="fmt_days_hours">%1$d j %2$d h</string>
+    <string name="fmt_hours_minutes">%1$d h %2$d min</string>
+    <string name="ping_ms">%d ms</string>
+    <string name="focus_left">Concentration %s</string>
+    <string name="focus_done">Concentration terminée — faites une pause</string>
 </resources>

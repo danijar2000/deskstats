@@ -52,8 +52,10 @@ class History {
     val ram = Series()
     val down = Series()
     val up = Series()
+    /** Bytes per second read from and written to the disk, together. */
+    val disk = Series()
     var last: Stats? = null
-    val all get() = arrayOf(cpu, gpu, ram, down, up)
+    val all get() = arrayOf(cpu, gpu, ram, down, up, disk)
 }
 
 class PanelView(context: Context, private val history: History) : View(context) {
@@ -63,14 +65,40 @@ class PanelView(context: Context, private val history: History) : View(context) 
 
     private class Slot(val label: String, val percent: String, val pct: Int)
 
-    private val series = arrayOf(arrayOf(history.cpu), arrayOf(history.gpu), arrayOf(history.ram), arrayOf(history.down, history.up))
+    private val series = arrayOf(arrayOf(history.cpu), arrayOf(history.gpu), arrayOf(history.ram), arrayOf(history.down, history.up), arrayOf(history.disk))
     private val cards = arrayOf(
         CardText(context.getString(R.string.cpu).heading(), unit = "%"),
         CardText(context.getString(R.string.gpu).heading(), unit = "%"),
         CardText(context.getString(R.string.ram).heading(), unit = Fmt.gbUnit),
         CardText(context.getString(R.string.network).heading(), unit = ""),
+        CardText(context.getString(R.string.block_disk).heading(), unit = "%"),
     )
     private var networkMax = ""
+    private var diskFree = ""
+
+    /** When the focus timer ends; 0 while it does not run. Held down on the clock, it starts or stops. */
+    private var focusUntil = 0L
+    private val focusTick = object : Runnable {
+        override fun run() {
+            if (focusUntil == 0L) return
+            if (System.currentTimeMillis() >= focusUntil) {
+                focusUntil = 0L
+                focusDoneUntil = System.currentTimeMillis() + FOCUS_DONE_SHOWN
+                ring()
+            }
+            dateMinute = -1L
+            invalidate()
+            postDelayed(this, 1000L - System.currentTimeMillis() % 1000L)
+        }
+    }
+    private var focusDoneUntil = 0L
+    private val holdClock = Runnable {
+        if (tracking && pressed === Block.CLOCK) {
+            tracking = false
+            press(null)
+            toggleFocus()
+        }
+    }
 
     private var stats: Stats? = null
     val latest: Stats? get() = stats
@@ -263,6 +291,15 @@ class PanelView(context: Context, private val history: History) : View(context) 
         val gpuMem = c.getString(R.string.gpu_mem)
         val netMax = c.getString(R.string.net_max)
         val ram = c.getString(R.string.ram)
+        val cpu = c.getString(R.string.cpu)
+        val uptime = c.getString(R.string.uptime)
+        val daysHours = c.getString(R.string.fmt_days_hours)
+        val hoursMinutes = c.getString(R.string.fmt_hours_minutes)
+        val ping = c.getString(R.string.ping_ms)
+        val diskIo = c.getString(R.string.disk_io)
+        val diskFree = c.getString(R.string.disk_free)
+        val focus = c.getString(R.string.focus_left)
+        val focusDone = c.getString(R.string.focus_done)
         val a11yWaiting = c.getString(R.string.a11y_waiting)
         val a11yStats = c.getString(R.string.a11y_stats)
         val a11yWeather = c.getString(R.string.a11y_weather)
@@ -293,12 +330,15 @@ class PanelView(context: Context, private val history: History) : View(context) 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         post(minute)
+        if (focusUntil != 0L) post(focusTick)
     }
 
     override fun onDetachedFromWindow() {
         removeCallbacks(minute)
         removeCallbacks(redraw)
         removeCallbacks(redrawOnTick)
+        removeCallbacks(focusTick)
+        removeCallbacks(holdClock)
         redrawPending = false
         super.onDetachedFromWindow()
     }
@@ -310,6 +350,7 @@ class PanelView(context: Context, private val history: History) : View(context) 
         history.gpu -> Ui.p.metrics[1]
         history.ram -> Ui.p.metrics[2]
         history.down -> Ui.p.metrics[3]
+        history.disk -> Ui.p.metrics[4]
         else -> Ui.p.up
     }
 
@@ -377,6 +418,8 @@ class PanelView(context: Context, private val history: History) : View(context) 
                 downY = event.y
                 tracking = true
                 press(hitAt(l, event.x, event.y))
+                removeCallbacks(holdClock)
+                if (pressed === Block.CLOCK) postDelayed(holdClock, HOLD_MS)
             }
             MotionEvent.ACTION_MOVE -> {
                 val slop = l.u * 0.05f
@@ -386,6 +429,7 @@ class PanelView(context: Context, private val history: History) : View(context) 
                 }
             }
             MotionEvent.ACTION_UP -> {
+                removeCallbacks(holdClock)
                 val target = pressed
                 press(null)
                 if (!tracking) return true
@@ -413,10 +457,15 @@ class PanelView(context: Context, private val history: History) : View(context) 
             history.ram.add(st.ramPct)
             history.down.add(st.down)
             history.up.add(st.up)
+            history.disk.add(if (st.diskRead == null || st.diskWrite == null) Float.NaN else st.diskRead + st.diskWrite)
             history.last = st
         }
         if (old == null || !sameSample) {
-            cards[0].apply { value = Fmt.number("%.0f", st.cpuPct); note = st.cpuName }
+            cards[0].apply {
+                value = Fmt.number("%.0f", st.cpuPct)
+                title = (if (st.temp == null) words.cpu else "${words.cpu} · ${st.temp.roundToInt()}°").heading()
+                note = listOfNotNull(st.cpuName.ifEmpty { null }, st.uptime?.let { String.format(words.uptime, duration(it)) }).joinToString(" · ")
+            }
             cards[1].apply {
                 value = st.gpuPct?.let { Fmt.number("%.0f", it) } ?: "—"
                 unit = if (st.gpuPct == null) "" else "%"
@@ -431,8 +480,16 @@ class PanelView(context: Context, private val history: History) : View(context) 
                 val d = Fmt.rate(st.down)
                 value = d.substringBefore(' ')
                 unit = d.substringAfter(' ')
-                note = "↑ ${Fmt.rate(st.up)}"
+                note = "↑ ${Fmt.rate(st.up)}" + (st.ping?.let { " · " + String.format(words.ping, it) } ?: "")
             }
+            cards[4].apply {
+                val known = st.diskTotal > 0L
+                val used = if (known) (st.diskTotal - st.diskFree).coerceAtLeast(0L) * 100f / st.diskTotal else 0f
+                value = if (known) Fmt.number("%.0f", used) else "—"
+                unit = if (known) "%" else ""
+                note = if (st.diskRead != null && st.diskWrite != null) String.format(words.diskIo, Fmt.rate(st.diskRead), Fmt.rate(st.diskWrite)) else ""
+            }
+            diskFree = if (st.diskTotal > 0L) String.format(words.diskFree, "${Fmt.size(st.diskFree)}") else ""
             networkMax = String.format(words.netMax, Fmt.rate(networkScale() / 1.15f))
         }
 
@@ -550,6 +607,53 @@ class PanelView(context: Context, private val history: History) : View(context) 
 
     private fun networkScale() = max(max(history.down.max(), history.up.max()), 10_000f) * 1.15f
 
+    private fun diskScale() = max(history.disk.max(), 1_000_000f) * 1.15f
+
+    /** A time span as "3 d 4 h" or "4 h 12 min". */
+    private fun duration(seconds: Long): String {
+        val days = seconds / 86_400
+        val hours = seconds % 86_400 / 3_600
+        return if (days > 0) String.format(words.daysHours, days, hours) else String.format(words.hoursMinutes, hours, seconds % 3_600 / 60)
+    }
+
+    private fun toggleFocus() {
+        removeCallbacks(focusTick)
+        focusDoneUntil = 0L
+        focusUntil = if (focusUntil == 0L) System.currentTimeMillis() + FOCUS_MS else 0L
+        if (focusUntil != 0L) post(focusTick)
+        dateMinute = -1L
+        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        invalidate()
+    }
+
+    private fun ring() {
+        try {
+            val tone = android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 80)
+            tone.startTone(android.media.ToneGenerator.TONE_PROP_ACK, 600)
+            postDelayed({ tone.release() }, 1000L)
+        } catch (e: RuntimeException) {
+            // No sound on this phone; the text says it all the same.
+        }
+    }
+
+    /** Today's sunrise and sunset in the place's time, and the moon. */
+    private fun sky(w: Weather): String? {
+        val parts = ArrayList<String>()
+        val zone = place?.zone ?: TimeZone.getDefault()
+        // The report may be days old when the weather is refreshed rarely; then its sun times are not today's.
+        val today = java.util.Calendar.getInstance(zone)
+        val risen = java.util.Calendar.getInstance(zone).apply { timeInMillis = (w.sunrise ?: 0L) * 1000 }
+        val current = today.get(java.util.Calendar.YEAR) == risen.get(java.util.Calendar.YEAR) && today.get(java.util.Calendar.DAY_OF_YEAR) == risen.get(java.util.Calendar.DAY_OF_YEAR)
+        if (w.sunrise != null && w.sunset != null && current) {
+            val f = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT, Ui.locale)
+            f.timeZone = zone
+            parts.add("☀ ${f.format(Date(w.sunrise * 1000))}–${f.format(Date(w.sunset * 1000))}")
+        }
+        // Emoji came with Android 6; older phones would show boxes.
+        if (Build.VERSION.SDK_INT >= 23) parts.add(moon(System.currentTimeMillis()))
+        return parts.joinToString(" ").ifEmpty { null }
+    }
+
     private fun prepareWeather() {
         weatherTemp = ""
         val l = layout ?: return
@@ -563,7 +667,7 @@ class PanelView(context: Context, private val history: History) : View(context) 
             w.min?.let { "↓${it.roundToInt()}°" },
         ).joinToString(" ")
         val feels = w.feels?.let { String.format(words.feels, "${it.roundToInt()}°") }
-        val second = listOfNotNull(feels, range.ifEmpty { null }).joinToString(" · ")
+        val second = listOfNotNull(feels, range.ifEmpty { null }, sky(w)).joinToString(" · ")
         val temp = "${w.temp.roundToInt()}°"
 
         text.typeface = Layout.LIGHT
@@ -686,7 +790,13 @@ class PanelView(context: Context, private val history: History) : View(context) 
             text.textSize = l.clockSize * 0.2f
             text.textAlign = Paint.Align.LEFT
             text.color = if (stale) p.muted else p.soft
-            if (t / 60_000L != dateMinute) {
+            if (focusUntil != 0L) {
+                val left = ((focusUntil - t).coerceAtLeast(0L) + 999L) / 1000L
+                dateText = String.format(words.focus, String.format(Locale.ROOT, "%d:%02d", left / 60, left % 60))
+            } else if (t < focusDoneUntil) {
+                dateText = words.focusDone
+                dateMinute = -1L
+            } else if (t / 60_000L != dateMinute) {
                 dateMinute = t / 60_000L
                 now.time = t
                 dateText = dateFormat.format(now).capitalized()
@@ -729,8 +839,9 @@ class PanelView(context: Context, private val history: History) : View(context) 
             card.set(l.cardRects[i])
             val m = METRICS.indexOf(block)
             val c = cards[m]
-            val corner = if (block == Block.NET && st != null) networkMax else ""
-            drawCard(canvas, i, c, corner, p.metrics[m], if (block == Block.NET) networkScale() else 100f, series[m], stale, pressed === block)
+            val corner = if (st == null) "" else if (block == Block.NET) networkMax else if (block == Block.DISK) diskFree else ""
+            val top = if (block == Block.NET) networkScale() else if (block == Block.DISK) diskScale() else 100f
+            drawCard(canvas, i, c, corner, p.metrics[m], top, series[m], stale, pressed === block)
         }
     }
 
@@ -898,7 +1009,8 @@ class PanelView(context: Context, private val history: History) : View(context) 
         drawHeading(canvas, words.alerts, left + inset, top + inset + header * 0.8f, header, p.muted, right - left - inset * 3)
         drawChevron(canvas, right - inset, top + inset + header * 0.45f, header * 0.3f)
 
-        val alerts = if (alertsEnabled) st?.alerts else null
+        // With the computer's notifications off, values that programs pushed still show.
+        val alerts = if (alertsEnabled) st?.alerts else st?.alerts?.filter { it.id.startsWith(PUSHED) }?.ifEmpty { null }
         val listTop = top + inset + header * 1.7f
         val contentWidth = right - left - inset * 2
         if (alerts.isNullOrEmpty()) {
@@ -1236,6 +1348,20 @@ class PanelView(context: Context, private val history: History) : View(context) 
         private const val CARD_RADIUS = 0.14f
         private const val STALE_ALPHA = 0x73
         private val GEAR = Any()
-        private val METRICS = arrayOf(Block.CPU, Block.GPU, Block.RAM, Block.NET)
+        private val METRICS = arrayOf(Block.CPU, Block.GPU, Block.RAM, Block.NET, Block.DISK)
+        private const val HOLD_MS = 600L
+        /** The id of a notification made from a value a program pushed (see Stats.parse). */
+        const val PUSHED = "push:"
+        private const val FOCUS_MS = 25 * 60_000L
+        private const val FOCUS_DONE_SHOWN = 60_000L
+        private const val SYNODIC_DAYS = 29.530588853
+        private const val NEW_MOON_2000 = 947_182_440_000L
+        private val MOONS = arrayOf("🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘")
+
+        /** The moon's phase at [ms]: days since a known new moon, in eight steps. */
+        fun moon(ms: Long): String {
+            val age = ((ms - NEW_MOON_2000) / 86_400_000.0 % SYNODIC_DAYS + SYNODIC_DAYS) % SYNODIC_DAYS
+            return MOONS[((age / SYNODIC_DAYS * 8 + 0.5).toInt()) % 8]
+        }
     }
 }

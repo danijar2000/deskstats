@@ -313,10 +313,12 @@ impl Screen {
         }
         self.trusted_checked = Some(Instant::now());
         unsafe {
-            let options = if self.prompted {
+            // macOS shows its question once per installed program: a restart of the same one asks nothing.
+            let options = if self.prompted || already_asked() {
                 std::ptr::null()
             } else {
                 self.prompted = true;
+                remember_asked();
                 let key = cf_string("AXTrustedCheckOptionPrompt");
                 let keys = [key];
                 let values = [kCFBooleanTrue];
@@ -597,6 +599,31 @@ fn find_process(name: &str) -> Option<c_int> {
     }
     None
 }
+
+/// What tells this program apart from the one installed before it: the time its file was written.
+fn this_build() -> String {
+    std::env::current_exe()
+        .and_then(std::fs::metadata)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or_else(String::new, |d| d.as_secs().to_string())
+}
+
+fn asked_mark() -> String {
+    format!("{}/accessibility-asked", super::data_dir())
+}
+
+/// Whether macOS was already asked to show its Accessibility question for this program.
+fn already_asked() -> bool {
+    let build = this_build();
+    !build.is_empty() && std::fs::read_to_string(asked_mark()).is_ok_and(|b| b.trim() == build)
+}
+
+fn remember_asked() {
+    let _ = std::fs::write(asked_mark(), this_build());
+}
+
 
 #[cfg(test)]
 mod tests {

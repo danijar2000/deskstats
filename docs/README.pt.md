@@ -15,18 +15,19 @@ e rede com gráficos ao vivo.
 - **Tudo é configurado no telefone**: idioma, tema, orientação, quais blocos mostrar,
   com que frequência atualizar, acesso por Wi‑Fi.
 
-## Capturas de tela
+## Visão geral
 
-| | |
-|---|---|
-| ![Tema escuro](screenshots/main-dark.png) | ![Tema neon](screenshots/main-neon.png) |
-| Tema **Escuro**, o padrão | Tema **Neon** |
-| ![Tema claro](screenshots/main-light.png) | ![Retrato](screenshots/main-portrait.png) |
-| Tema **Claro** | Orientação **Retrato** |
-| ![Aplicativos](screenshots/apps.png) | ![Notificações](screenshots/alerts.png) |
-| Toque em um cartão de carga: os apps do Mac ordenados por essa carga | Toque nas notificações: a lista completa com os textos |
-| ![Cidades](screenshots/places.png) | ![Ajustes](screenshots/settings.png) |
-| Toque no relógio ou no clima: escolha uma cidade | A engrenagem: ajustes |
+No computador: um comando instala, duas permissões e o painel sob o ícone da barra de menus. No telefone: as páginas do app.
+
+[![Visão geral](tour.gif)](tour.mp4)
+
+[Ver em MP4](tour.mp4)
+
+**O app do telefone**
+
+[![O app do telefone](phone.gif)](phone.mp4)
+
+[Ver em MP4](phone.mp4)
 
 ## Requisitos
 
@@ -54,7 +55,7 @@ Sem telefone no cabo? Adicione `-s -- --no-phone` depois de `bash` e instale
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 você mesmo.
 
-**Sem cabo ou sem adb?** Então o script mostra um código QR com o link do app: escaneie com o telefone, instale o app e abra-o. Na mesma Wi‑Fi ele encontra o computador sozinho; toque nele e permita o telefone no computador. O adb só é necessário para o cabo USB.
+**Sem cabo ou sem adb?** Então o script mostra o link do app: abra-o no telefone, instale o app e abra-o. Na mesma Wi‑Fi ele encontra o computador sozinho; toque nele e permita o telefone no computador. O adb só é necessário para o cabo USB.
 
 ### Permissões no Mac
 

@@ -25,6 +25,10 @@ windows-sys = { version = "0.59", features = [
     "Win32_NetworkManagement_IpHelper",
     "Win32_NetworkManagement_Ndis",
     "Win32_Networking_WinSock",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_Ioctl",
     "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_ProcessStatus",
     "Win32_System_Registry",
@@ -40,5 +44,3 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(deskstats_ui)"] }

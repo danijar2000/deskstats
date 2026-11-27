@@ -104,8 +104,6 @@ jobs:
           server/target/${{ matrix.arch }}-unknown-linux-musl/release/deskstats 2> server.log &
           sleep 2
           token="$(cat "$HOME/.config/deskstats/token")"
-          server/target/${{ matrix.arch }}-unknown-linux-musl/release/deskstats --qr https://example.com/app.apk
-          test "$(server/target/${{ matrix.arch }}-unknown-linux-musl/release/deskstats --qr-bits https://example.com/app.apk | wc -l)" = 25
           curl -fsS -H 'X-Deskstats: 1' http://127.0.0.1:8787/info | tee info.json
           grep -q '"app":"deskstats"' info.json
           # A phone asking to be let in over Wi-Fi: the key agreement runs, and the server lives on to answer below.
@@ -203,9 +201,6 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File deskstats-server/install.ps1
           if ($LASTEXITCODE -ne 0) { throw 'install.ps1 failed' }
           if (-not (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name deskstats)) { throw 'does not start at sign-in' }
-          Start-Process -FilePath "$env:LOCALAPPDATA\deskstats\deskstats.exe" -ArgumentList '--qr-bits', 'https://example.com/app.apk' -Wait -NoNewWindow -RedirectStandardOutput qr.txt
-          $rows = @(Get-Content qr.txt)
-          if ($rows.Count -ne 25 -or $rows[0] -notmatch '^1111111[01]+1111111$') { throw "no QR code: $rows" }
           $token = (Get-Content "$env:APPDATA\deskstats\token" -Raw).Trim()
           $info = curl.exe -fsS -H 'X-Deskstats: 1' http://127.0.0.1:8787/info
           $info
@@ -300,7 +295,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # setup.sh and setup.ps1 check every download against this list.
+          sha256sum deskstats-server-macos.tar.gz deskstats-server-linux-x86_64.tar.gz deskstats-server-linux-aarch64.tar.gz \
+            deskstats-server-windows-x86_64.zip deskstats.apk > SHA256SUMS
+          cat SHA256SUMS
           gh release create "$GITHUB_REF_NAME" deskstats-server-macos.tar.gz \
             deskstats-server-linux-x86_64.tar.gz deskstats-server-linux-aarch64.tar.gz \
-            deskstats-server-windows-x86_64.zip deskstats.apk \
+            deskstats-server-windows-x86_64.zip deskstats.apk SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes

@@ -117,7 +117,7 @@
     <string name="zone_middle">中央</string>
     <string name="zone_bottom">下部</string>
     <string name="block_clock">時計と日付</string>
-    <string name="block_clock_note">選択したタイムゾーンでのスマートフォンの時刻</string>
+    <string name="block_clock_note">選択したタイムゾーンでのスマートフォンの時刻 長押しで25分の集中タイマーを開始・停止します。</string>
     <string name="block_weather">天気</string>
     <string name="block_weather_note">選択した都市の天気</string>
     <string name="block_alerts">通知</string>
@@ -173,4 +173,14 @@
         <item>雷雨</item>
         <item>曇り</item>
     </string-array>
+    <string name="block_disk">ディスク</string>
+    <string name="block_disk_note">システムディスクの空き容量と読み書きの速度</string>
+    <string name="disk_io">読み %1$s · 書き %2$s</string>
+    <string name="disk_free">空き %s</string>
+    <string name="uptime">稼働 %s</string>
+    <string name="fmt_days_hours">%1$d日%2$d時間</string>
+    <string name="fmt_hours_minutes">%1$d時間%2$d分</string>
+    <string name="ping_ms">%d ms</string>
+    <string name="focus_left">集中 %s</string>
+    <string name="focus_done">集中終了。休憩しましょう</string>
 </resources>

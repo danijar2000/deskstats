@@ -117,7 +117,7 @@
     <string name="zone_middle">Посередине</string>
     <string name="zone_bottom">Снизу</string>
     <string name="block_clock">Часы и дата</string>
-    <string name="block_clock_note">Время телефона в выбранном часовом поясе</string>
+    <string name="block_clock_note">Время телефона в выбранном часовом поясе Удерживайте, чтобы запустить или остановить 25-минутный таймер фокуса.</string>
     <string name="block_weather">Погода</string>
     <string name="block_weather_note">Погода в выбранном городе</string>
     <string name="block_alerts">Уведомления</string>
@@ -173,4 +173,14 @@
         <item>Гроза</item>
         <item>Облачно</item>
     </string-array>
+    <string name="block_disk">Диск</string>
+    <string name="block_disk_note">Свободное место на системном диске и скорость чтения и записи</string>
+    <string name="disk_io">чтение %1$s · запись %2$s</string>
+    <string name="disk_free">свободно %s</string>
+    <string name="uptime">работает %s</string>
+    <string name="fmt_days_hours">%1$d д %2$d ч</string>
+    <string name="fmt_hours_minutes">%1$d ч %2$d мин</string>
+    <string name="ping_ms">%d мс</string>
+    <string name="focus_left">Фокус %s</string>
+    <string name="focus_done">Фокус окончен — отдохните</string>
 </resources>

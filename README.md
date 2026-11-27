@@ -15,18 +15,19 @@ network load with live charts.
 - **Everything is set up on the phone**: language, theme, orientation, which blocks to show,
   how often to update, Wi‑Fi access.
 
-## Screenshots
+## Tour
 
-| | |
-|---|---|
-| ![Dark theme](docs/screenshots/main-dark.png) | ![Neon theme](docs/screenshots/main-neon.png) |
-| **Dark** theme, the default | **Neon** theme |
-| ![Light theme](docs/screenshots/main-light.png) | ![Portrait](docs/screenshots/main-portrait.png) |
-| **Light** theme | **Portrait** orientation |
-| ![Applications](docs/screenshots/apps.png) | ![Notifications](docs/screenshots/alerts.png) |
-| Tap a load card: the Mac's apps sorted by that load | Tap the notifications: the full list with texts |
-| ![Cities](docs/screenshots/places.png) | ![Settings](docs/screenshots/settings.png) |
-| Tap the clock or the weather: pick a city | The gear: settings |
+On the computer: one command installs it, two permissions, and the panel under the icon in the menu bar. On the phone: the pages of the app.
+
+[![Tour](docs/tour.gif)](docs/tour.mp4)
+
+[Watch as MP4](docs/tour.mp4)
+
+**The phone app**
+
+[![The phone app](docs/phone.gif)](docs/phone.mp4)
+
+[Watch as MP4](docs/phone.mp4)
 
 ## Requirements
 
@@ -53,7 +54,7 @@ No phone on a cable? Add `-s -- --no-phone` after `bash` and install
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 yourself.
 
-**No cable or no adb?** Then the script shows a QR code with the link to the app: scan it with the phone, install the app and open it. With the phone on the same Wi‑Fi it finds the computer by itself; tap it and allow the phone on the computer. adb is only needed for the USB cable.
+**No cable or no adb?** Then the script shows the link to the app: open it on the phone, install the app and open it. With the phone on the same Wi‑Fi it finds the computer by itself; tap it and allow the phone on the computer. adb is only needed for the USB cable.
 
 ### Mac permissions
 
@@ -103,6 +104,21 @@ irm https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.ps1 | iex
   whether to let the phone in. Connecting the phone to a Mac with the cable once adds it too. Swipe
   the main screen left or right to switch; the dots at the top show which Mac is shown. × forgets a Mac.
 - **Back** closes a page; an unattended page closes by itself after a few minutes.
+- **The Disk card** shows how full the system disk is and how fast it is read and written. The CPU
+  card adds the CPU temperature where the system tells it (Mac, most Linux PCs; not Windows) and how
+  long the computer has been on; the Network card adds the time to the internet (ping).
+- **The weather** shows today's sunrise and sunset and the moon.
+- **Hold the clock** to start or stop a 25-minute focus timer; the date line counts down.
+- **The volume keys** switch between computers, like a swipe.
+- **Your own values**: a script on the computer can show a line on the phone, among the notifications:
+
+  ```sh
+  curl -H "Authorization: Bearer $(cat ~/Library/Application\ Support/deskstats/token)" \
+    "http://127.0.0.1:8787/push?k=build&v=passed"
+  ```
+
+  The token is in `~/.config/deskstats/token` on Linux and `%APPDATA%\deskstats\token` on Windows.
+  An empty `v` removes the line; the last eight keys are kept.
 
 To avoid burn-in the picture moves a few pixels every two minutes and the screen dims after
 five minutes without the Mac. The panel starts after the phone reboots (up to Android 9; on

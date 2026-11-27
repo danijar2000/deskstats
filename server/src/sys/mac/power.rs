@@ -1,6 +1,6 @@
 use crate::util::log;
 use std::ffi::c_void;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 
 const MSG_CAN_SYSTEM_SLEEP: u32 = 0xe000_0270;
 const MSG_SYSTEM_WILL_SLEEP: u32 = 0xe000_0280;
@@ -38,12 +38,34 @@ extern "C" {
     fn CGDisplayIsAsleep(display: u32) -> i32;
 }
 
-extern "C" {
-    fn signal(sig: i32, handler: extern "C" fn(i32)) -> usize;
+/// struct sigaction of macOS: the handler, the mask (32 bits) and the flags.
+#[repr(C)]
+struct SigAction {
+    handler: usize,
+    mask: u32,
+    flags: i32,
 }
 
-extern "C" fn on_signal(_: i32) {
+const SA_SIGINFO: i32 = 0x40;
+
+extern "C" {
+    fn sigaction(sig: i32, action: *const SigAction, old: *mut SigAction) -> i32;
+}
+
+/// Who sent the signal that stops the server (si_pid), so that the log can say.
+static SENDER: AtomicI32 = AtomicI32::new(0);
+
+extern "C" fn on_signal(_: i32, info: *const i32, _: *mut c_void) {
+    // siginfo_t: si_signo, si_errno, si_code, si_pid, … (32-bit each at the start).
+    if !info.is_null() {
+        SENDER.store(unsafe { *info.add(3) }, Ordering::SeqCst);
+    }
     STOPPING.store(true, Ordering::SeqCst);
+}
+
+/// The process that asked the server to stop; 0 when unknown.
+pub fn stop_sender() -> i32 {
+    SENDER.load(Ordering::SeqCst)
 }
 
 pub fn state() -> &'static str {
@@ -82,8 +104,9 @@ extern "C" fn on_power(_: *mut c_void, _: u32, message: u32, argument: *mut c_vo
 
 pub fn start() {
     unsafe {
-        signal(SIGTERM, on_signal);
-        signal(SIGINT, on_signal);
+        let action = SigAction { handler: on_signal as *const () as usize, mask: 0, flags: SA_SIGINFO };
+        sigaction(SIGTERM, &action, std::ptr::null_mut());
+        sigaction(SIGINT, &action, std::ptr::null_mut());
     }
     let spawned = std::thread::Builder::new().name("power".into()).spawn(|| unsafe {
         let mut port: *mut c_void = std::ptr::null_mut();

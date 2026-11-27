@@ -1,18 +1,16 @@
-// The window of deskstats on the computer and its icon by the clock.
+// The icon of deskstats by the clock and its panel.
 //
-//   deskstats-ui          opens the window (or brings the one already open to the front)
-//   deskstats-ui --tray   shows the icon by the clock; a click on it opens the window
-//   deskstats-ui --icon FILE.png   saves the icon (for the menu of applications on Linux)
-//   deskstats-ui --snapshot FILE.png [dark|light]   saves a picture of the window and quits (for checks)
+//   deskstats-ui                    shows the icon by the clock; a click on it opens the panel. If the icon runs
+//                                   already (started again from the menu of applications), opens the panel instead
+//   deskstats-ui --at X Y SIDE      opens the panel hanging from the icon at X, Y (points); SIDE is down, up or auto
+//   deskstats-ui --icon FILE.png    saves the icon (for the menu of applications on Linux)
+//   deskstats-ui --snapshot FILE.png [dark|light]   saves a picture of the panel and quits (for checks)
 //
-// The icon is a process of its own that draws nothing, so it costs next to nothing while the window is shut.
+// The icon is a process of its own that draws nothing, so it costs next to nothing while the panel is shut.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod icon;
 mod png;
-#[allow(dead_code, clippy::manual_is_multiple_of)]
-#[path = "../../server/src/qr.rs"]
-mod qr;
 mod server;
 mod text;
 mod tray;
@@ -26,7 +24,11 @@ pub const VERSION: &str = match option_env!("DESKSTATS_VERSION") {
 
 fn main() {
     match std::env::args().nth(1).as_deref() {
-        Some("--tray") => tray::run(),
+        // --tray: what the installers of earlier releases start at sign-in.
+        None | Some("--tray") => match tray::claim() {
+            Some(listener) => tray::run(listener),
+            None => window::run_panel_alone(),
+        },
         Some("--version") => println!("{VERSION}"),
         // The installer on Linux puts this picture beside the entry in the menu of applications.
         Some("--icon") => {
@@ -35,7 +37,16 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Some("--at") => {
+            let arg = |n: usize| std::env::args().nth(n).and_then(|v| v.parse::<f32>().ok()).unwrap_or(f32::NAN);
+            let side = match std::env::args().nth(4).as_deref() {
+                Some("up") => window::Side::Up,
+                Some("auto") => window::Side::Auto,
+                _ => window::Side::Down,
+            };
+            window::run_panel(arg(2), arg(3), side);
+        }
         Some("--snapshot") => window::run_snapshot(std::env::args().nth(2).unwrap_or_else(|| "deskstats.png".into()), std::env::args().nth(3)),
-        _ => window::run(),
+        _ => window::run_panel_alone(),
     }
 }

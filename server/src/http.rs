@@ -1,6 +1,6 @@
 use crate::crypto::Keys;
 use crate::procs::Tracker;
-use crate::util::{log, now_ms};
+use crate::util::{json_escape, log, now_ms};
 use crate::settings::Settings;
 use crate::weather::Weather;
 use std::io::{Read, Write};
@@ -23,8 +23,8 @@ pub struct Sample {
 }
 
 impl Sample {
-    pub fn json(&self, full: bool, weather: &str) -> String {
-        format!("{}{}\"weather\":{weather}}}", self.head, if full { &self.alerts_full } else { &self.alerts })
+    pub fn json(&self, full: bool, weather: &str, pushed: &str) -> String {
+        format!("{}{}\"pushed\":{pushed},\"weather\":{weather}}}", self.head, if full { &self.alerts_full } else { &self.alerts })
     }
 }
 
@@ -41,7 +41,11 @@ pub struct Shared {
     pub settings: Arc<Settings>,
     pub procs: Tracker,
     pub last_request_ms: AtomicU64,
+    /// The last time the window on this computer asked for numbers.
+    pub last_window_ms: AtomicU64,
     pub last_local_ms: AtomicU64,
+    /// Values that programs on this computer pushed (GET /push?k=…&v=…): key, value and when, newest last.
+    pub pushed: Mutex<Vec<(String, String, u64)>>,
     /// The last request for data that came over Wi‑Fi.
     pub last_lan_ms: AtomicU64,
     /// Whether adb was found when the server started, for the window on this computer.
@@ -70,7 +74,9 @@ impl Shared {
             settings,
             procs: Tracker::default(),
             last_request_ms: AtomicU64::new(0),
+            last_window_ms: AtomicU64::new(0),
             last_local_ms: AtomicU64::new(0),
+            pushed: Mutex::new(Vec::new()),
             last_lan_ms: AtomicU64::new(0),
             adb: std::sync::atomic::AtomicBool::new(false),
             token,
@@ -234,6 +240,25 @@ fn answer(target: &str, shared: &Shared, local: bool) -> (u16, String) {
         shared.weather.set_every(Duration::from_secs(shared.settings.weather_min.load(Ordering::Relaxed) * 60));
         return (200, shared.settings.json());
     }
+    if path == "/push" {
+        // Only programs on this computer, with the token: a script, a smart home bridge, a build that finished.
+        if !local {
+            return (404, error_json("not found"));
+        }
+        let key = crate::pair::decode(param(query, "k").unwrap_or(""), PUSH_KEY_LEN);
+        let value = crate::pair::decode(param(query, "v").unwrap_or(""), PUSH_VALUE_LEN);
+        if key.is_empty() {
+            return (400, error_json("no key"));
+        }
+        let mut list = shared.pushed.lock().unwrap_or_else(|e| e.into_inner());
+        list.retain(|(k, _, _)| *k != key);
+        if !value.is_empty() {
+            list.push((key, value, now_ms()));
+            let extra = list.len().saturating_sub(PUSH_KEEP);
+            list.drain(..extra);
+        }
+        return (200, pushed_json(&list));
+    }
     if path == "/status" {
         // For the window on this computer only: it must not wake the sampler the way a phone does.
         return if local { (200, status_json(shared)) } else { (404, error_json("not found")) };
@@ -241,14 +266,18 @@ fn answer(target: &str, shared: &Shared, local: bool) -> (u16, String) {
     if path != "/stats" && path != "/procs" {
         return (404, error_json("not found"));
     }
-    let woken = now_ms().saturating_sub(shared.last_request_ms.swap(now_ms(), Ordering::Relaxed)) > 1000;
+    // The window on this computer shows the numbers too, but is not a phone: it keeps the sampler awake without
+    // counting as the phone that last asked, or as one on the cable.
+    let window = local && path == "/stats" && param(query, "viewer") == Some("window");
+    let stamp = if window { &shared.last_window_ms } else { &shared.last_request_ms };
+    let woken = now_ms().saturating_sub(stamp.swap(now_ms(), Ordering::Relaxed)) > 1000;
     if woken {
         shared.ring();
     }
-    if local {
-        shared.last_local_ms.store(now_ms(), Ordering::Relaxed);
-    } else {
+    if !local {
         shared.last_lan_ms.store(now_ms(), Ordering::Relaxed);
+    } else if !window {
+        shared.last_local_ms.store(now_ms(), Ordering::Relaxed);
     }
     let json = if crate::power::state() == "sleep" {
         Some(String::from("{\"mac\":\"sleep\"}"))
@@ -260,14 +289,26 @@ fn answer(target: &str, shared: &Shared, local: bool) -> (u16, String) {
             let weather = param(query, "place")
                 .and_then(crate::weather::parse_place)
                 .map_or_else(|| String::from("null"), |(lat, lon)| shared.weather.place(lat, lon));
-            sample.json(param(query, "alerts") == Some("full"), &weather)
+            let pushed = pushed_json(&shared.pushed.lock().unwrap_or_else(|e| e.into_inner()));
+            sample.json(param(query, "alerts") == Some("full"), &weather, &pushed)
         })
     };
     let Some(json) = json else {
         return (503, error_json("starting"));
     };
-    crate::power::LAST_POLL_MS.store(now_ms(), Ordering::Relaxed);
+    if !window {
+        crate::power::LAST_POLL_MS.store(now_ms(), Ordering::Relaxed);
+    }
     (200, json)
+}
+
+const PUSH_KEY_LEN: usize = 32;
+const PUSH_VALUE_LEN: usize = 64;
+const PUSH_KEEP: usize = 8;
+
+fn pushed_json(list: &[(String, String, u64)]) -> String {
+    let items: Vec<String> = list.iter().map(|(k, v, ts)| format!("{{\"k\":\"{}\",\"v\":\"{}\",\"ts\":{ts}}}", json_escape(k), json_escape(v))).collect();
+    format!("[{}]", items.join(","))
 }
 
 /// What the window on this computer shows: who the server says it is, where phones reach it and when one last asked.
@@ -487,6 +528,35 @@ mod tests {
         let _ = std::fs::remove_file(s.settings.path());
     }
 
+    #[test]
+    fn programs_here_push_values_and_phones_see_them() {
+        let s = shared();
+        assert_eq!(answer("/push?k=build&v=ok", &s, true), (200, String::from("[{\"k\":\"build\",\"v\":\"ok\",\"ts\":") + &s.pushed.lock().unwrap()[0].2.to_string() + "}]"));
+        assert_eq!(answer("/push?k=build&v=ok", &s, false).0, 404);
+        assert_eq!(answer("/push?v=ok", &s, true).0, 400);
+        for i in 0..10 {
+            answer(&format!("/push?k=k{i}&v={i}"), &s, true);
+        }
+        assert_eq!(s.pushed.lock().unwrap().len(), PUSH_KEEP);
+        answer("/push?k=k9&v=", &s, true);
+        assert!(!s.pushed.lock().unwrap().iter().any(|(k, _, _)| k == "k9"));
+        let _ = std::fs::remove_file(s.settings.path());
+    }
+
+    #[test]
+    fn the_window_keeps_measuring_but_is_not_a_phone() {
+        let s = shared();
+        assert_eq!(answer("/stats?viewer=window", &s, true).0, 200);
+        assert_eq!(s.last_request_ms.load(Ordering::Relaxed), 0);
+        assert_eq!(s.last_local_ms.load(Ordering::Relaxed), 0);
+        assert!(s.last_window_ms.load(Ordering::Relaxed) > 0);
+        assert_eq!(s.last_lan_ms.load(Ordering::Relaxed), 0);
+        // Over Wi-Fi the word counts for nothing: that is a phone.
+        answer("/stats?viewer=window", &s, false);
+        assert!(s.last_request_ms.load(Ordering::Relaxed) > 0);
+        let _ = std::fs::remove_file(s.settings.path());
+    }
+
     fn starting() -> Shared {
         Shared::new(TOKEN.into(), 8787, Arc::new(Weather::new(Duration::from_secs(3600))), test_settings())
     }
@@ -552,9 +622,9 @@ mod tests {
         let s = shared();
         let reply = respond(&parse(sealed(&s, "/stats").as_bytes()).unwrap(), &s, false);
         assert_eq!((reply.status, reply.sealed, reply.trusted), ("200 OK", true, true));
-        assert_eq!(opened(&s, &reply.body), ("200".into(), "{\"ts\":1,\"alerts\":[1],\"weather\":null}".into()));
+        assert_eq!(opened(&s, &reply.body), ("200".into(), "{\"ts\":1,\"alerts\":[1],\"pushed\":[],\"weather\":null}".into()));
         let reply = respond(&parse(sealed(&s, "/stats?alerts=full").as_bytes()).unwrap(), &s, false);
-        assert_eq!(opened(&s, &reply.body).1, "{\"ts\":1,\"alerts\":[1,2],\"weather\":null}");
+        assert_eq!(opened(&s, &reply.body).1, "{\"ts\":1,\"alerts\":[1,2],\"pushed\":[],\"weather\":null}");
         let reply = respond(&parse(sealed(&s, "/nothing").as_bytes()).unwrap(), &s, false);
         assert_eq!(opened(&s, &reply.body).0, "404");
         let reply = respond(&parse(sealed(&starting(), "/stats").as_bytes()).unwrap(), &starting(), true);

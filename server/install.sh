@@ -14,7 +14,7 @@ data="$HOME/Library/Application Support/deskstats"
 old_logs=("$HOME/Library/Logs/deskstats.log" "$HOME/Library/Logs/deskstats-ax.log")
 domain="gui/$(id -u)"
 identity="${DESKSTATS_SIGN_IDENTITY:--}"
-# The window and the icon in the menu bar: an application of its own, so that the server's permissions stay as they are.
+# The icon in the menu bar and its panel: an application of its own, so that the server's permissions stay as they are.
 panel_label="app.deskstats.panel"
 panel_plist="$HOME/Library/LaunchAgents/$panel_label.plist"
 panel="$HOME/Applications/Deskstats Panel.app"
@@ -25,7 +25,7 @@ unload_panel() {
     launchctl print "$domain/$panel_label" >/dev/null 2>&1 || break
     sleep 0.1
   done
-  # The window may be open by itself, outside the agent.
+  # The panel may be open by itself, outside the agent.
   pkill -f "$panel/Contents/MacOS/" 2>/dev/null || true
 }
 
@@ -134,7 +134,7 @@ cat > "$plist.new" <<PLIST
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
-  <key>ThrottleInterval</key><integer>30</integer>
+  <key>ThrottleInterval</key><integer>3</integer>
   <key>ProcessType</key><string>Background</string>
 </dict></plist>
 PLIST
@@ -203,7 +203,6 @@ INFO
   <key>Label</key><string>$panel_label</string>
   <key>ProgramArguments</key><array>
     <string>$panel/Contents/MacOS/deskstats-ui</string>
-    <string>--tray</string>
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
@@ -217,7 +216,7 @@ fi
 
 echo "deskstats is running and starts at login."
 if [ -d "$panel" ]; then
-  echo "Its icon is in the menu bar; the window is also in ~/Applications as Deskstats Panel."
+  echo "Its icon is in the menu bar: a click shows the panel, with Quit at its bottom."
 fi
 if [ "$same_bundle" = 0 ]; then
   echo

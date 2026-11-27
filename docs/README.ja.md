@@ -13,18 +13,19 @@
   Mac と一緒にスリープし、一緒に復帰します。
 - **設定はすべてスマートフォン上で**：言語、テーマ、画面の向き、表示するブロック、更新頻度、Wi‑Fi アクセス。
 
-## スクリーンショット
+## ツアー
 
-| | |
-|---|---|
-| ![ダークテーマ](screenshots/main-dark.png) | ![ネオンテーマ](screenshots/main-neon.png) |
-| **ダーク**テーマ（デフォルト） | **ネオン**テーマ |
-| ![ライトテーマ](screenshots/main-light.png) | ![縦向き](screenshots/main-portrait.png) |
-| **ライト**テーマ | **縦向き** |
-| ![アプリ](screenshots/apps.png) | ![通知](screenshots/alerts.png) |
-| 負荷カードをタップ：その負荷順に並んだ Mac のアプリ | 通知をタップ：本文付きの全リスト |
-| ![都市](screenshots/places.png) | ![設定](screenshots/settings.png) |
-| 時計か天気をタップ：都市を選択 | 歯車：設定 |
+コンピュータ：コマンド1つでインストールし、2つの許可を与えると、メニューバーのアイコンの下にパネルが開きます。スマートフォン：アプリの各ページ。
+
+[![ツアー](tour.gif)](tour.mp4)
+
+[MP4 で見る](tour.mp4)
+
+**スマートフォンのアプリ**
+
+[![スマートフォンのアプリ](phone.gif)](phone.mp4)
+
+[MP4 で見る](phone.mp4)
 
 ## 必要なもの
 
@@ -51,7 +52,7 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)
 を自分でインストールしてください。
 
-**ケーブルや adb がない場合：** スクリプトがアプリへのリンクの QR コードを表示します。スマートフォンで読み取り、アプリをインストールして開いてください。同じ Wi‑Fi にあればアプリがコンピュータを自動で見つけます。タップして、コンピュータ側でスマートフォンを許可してください。adb が必要なのは USB ケーブルを使うときだけです。
+**ケーブルや adb がない場合：** スクリプトがアプリへのリンクを表示します。スマートフォンで開き、アプリをインストールして開いてください。同じ Wi‑Fi にあればアプリがコンピュータを自動で見つけます。タップして、コンピュータ側でスマートフォンを許可してください。adb が必要なのは USB ケーブルを使うときだけです。
 
 ### Mac のアクセス許可
 

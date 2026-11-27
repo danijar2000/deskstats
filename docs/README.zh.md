@@ -11,18 +11,19 @@
 - **手机**通过 USB 数据线或 Wi‑Fi 连接，并自动在两者之间切换。它随 Mac 一起休眠和唤醒。
 - **所有设置都在手机上完成**：语言、主题、屏幕方向、显示哪些区块、刷新频率、Wi‑Fi 访问。
 
-## 截图
+## 演示
 
-| | |
-|---|---|
-| ![深色主题](screenshots/main-dark.png) | ![霓虹主题](screenshots/main-neon.png) |
-| **深色**主题（默认） | **霓虹**主题 |
-| ![浅色主题](screenshots/main-light.png) | ![竖屏](screenshots/main-portrait.png) |
-| **浅色**主题 | **竖屏**方向 |
-| ![应用](screenshots/apps.png) | ![通知](screenshots/alerts.png) |
-| 点按负载卡片：按该负载排序的 Mac 应用 | 点按通知：带正文的完整列表 |
-| ![城市](screenshots/places.png) | ![设置](screenshots/settings.png) |
-| 点按时钟或天气：选择城市 | 齿轮：设置 |
+电脑上：一条命令安装，授予两项权限，点击菜单栏图标显示面板。手机上：应用的各个页面。
+
+[![演示](tour.gif)](tour.mp4)
+
+[观看 MP4](tour.mp4)
+
+**手机应用**
+
+[![手机应用](phone.gif)](phone.mp4)
+
+[观看 MP4](phone.mp4)
 
 ## 系统要求
 
@@ -46,7 +47,7 @@ curl -fsSL https://raw.githubusercontent.com/danijar2000/deskstats/main/setup.sh
 手机没有接数据线？在 `bash` 后加上 `-s -- --no-phone`，然后自行安装
 [deskstats.apk](https://github.com/danijar2000/deskstats/releases/latest/download/deskstats.apk)。
 
-**没有数据线或没有 adb？** 脚本会显示一个带应用链接的二维码：用手机扫描，安装并打开应用。手机在同一 Wi‑Fi 下会自动找到电脑；轻点它，并在电脑上允许手机连接。只有使用 USB 数据线时才需要 adb。
+**没有数据线或没有 adb？** 脚本会显示应用的链接：在手机上打开它，安装并打开应用。手机在同一 Wi‑Fi 下会自动找到电脑；轻点它，并在电脑上允许手机连接。只有使用 USB 数据线时才需要 adb。
 
 ### Mac 权限
 

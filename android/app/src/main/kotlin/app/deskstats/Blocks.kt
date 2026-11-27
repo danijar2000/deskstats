@@ -17,6 +17,7 @@ enum class Block(val id: String, val title: Int, val zone: Zone, val note: Int) 
     GPU("gpu", R.string.gpu, Zone.ROW, R.string.block_gpu_note),
     RAM("ram", R.string.ram, Zone.ROW, R.string.block_ram_note),
     NET("net", R.string.network, Zone.ROW, R.string.block_net_note),
+    DISK("disk", R.string.block_disk, Zone.ROW, R.string.block_disk_note),
 }
 
 class BlockSetup(val order: List<Block>, val hidden: Set<Block>) {
@@ -38,6 +39,7 @@ class BlockSetup(val order: List<Block>, val hidden: Set<Block>) {
 
     companion object {
         private const val KEY = "blocks"
+        private val ADDED_LATER = setOf(Block.DISK)
 
         fun load(prefs: SharedPreferences): BlockSetup {
             val order = ArrayList<Block>()
@@ -48,7 +50,13 @@ class BlockSetup(val order: List<Block>, val hidden: Set<Block>) {
                 order.add(block)
                 if (part.startsWith("-")) hidden.add(block)
             }
-            for (block in Block.values()) if (block !in order) order.add(block)
+            val saved = prefs.getString(KEY, null) != null
+            for (block in Block.values()) {
+                if (block in order) continue
+                order.add(block)
+                // A block added in an update starts hidden for someone who already arranged the screen.
+                if (saved && block in ADDED_LATER) hidden.add(block)
+            }
             return BlockSetup(order, hidden)
         }
     }

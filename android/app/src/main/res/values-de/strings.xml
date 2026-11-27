@@ -117,7 +117,7 @@
     <string name="zone_middle">Mitte</string>
     <string name="zone_bottom">Unten</string>
     <string name="block_clock">Uhr und Datum</string>
-    <string name="block_clock_note">Zeit des Telefons in der gewählten Zeitzone</string>
+    <string name="block_clock_note">Zeit des Telefons in der gewählten Zeitzone Gedrückt halten startet oder stoppt einen 25-Minuten-Fokustimer.</string>
     <string name="block_weather">Wetter</string>
     <string name="block_weather_note">Wetter in der gewählten Stadt</string>
     <string name="block_alerts">Mitteilungen</string>
@@ -173,4 +173,14 @@
         <item>Gewitter</item>
         <item>Bewölkt</item>
     </string-array>
+    <string name="block_disk">Datenträger</string>
+    <string name="block_disk_note">Freier Platz auf dem Systemlaufwerk und wie schnell gelesen und geschrieben wird</string>
+    <string name="disk_io">lesen %1$s · schreiben %2$s</string>
+    <string name="disk_free">%s frei</string>
+    <string name="uptime">läuft seit %s</string>
+    <string name="fmt_days_hours">%1$d T. %2$d Std.</string>
+    <string name="fmt_hours_minutes">%1$d Std. %2$d Min.</string>
+    <string name="ping_ms">%d ms</string>
+    <string name="focus_left">Fokus %s</string>
+    <string name="focus_done">Fokus vorbei – Zeit für eine Pause</string>
 </resources>

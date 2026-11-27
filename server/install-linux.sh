@@ -74,7 +74,7 @@ Description=deskstats: this computer's stats on an Android phone
 # %h is the home directory; the quotes keep a path with spaces in one piece.
 ExecStart="%h/.local/bin/deskstats"
 Restart=on-failure
-RestartSec=30
+RestartSec=3
 # Stop only the server itself: the adb server it may have started is shared with other tools.
 KillMode=process
 $adb_line
@@ -97,7 +97,7 @@ for _ in $(seq 20); do
 done
 [ "$running" = 1 ] || fail "the server did not start: journalctl --user -u $service"
 
-# The window and the icon by the clock: an entry in the menu of applications and one that starts at login.
+# The icon by the clock and its panel: an entry in the menu of applications and one that starts at login.
 panel=0
 if [ -n "$built_ui" ] && [ -x "$built_ui" ]; then
   pkill -u "$(id -u)" -f "$ui" 2>/dev/null || true
@@ -139,7 +139,7 @@ fi
 
 echo "deskstats is running and starts at login."
 if [ "$panel" = 1 ]; then
-  echo "Its window is Deskstats in the menu of applications; its icon is by the clock (on GNOME it needs"
+  echo "Its icon is by the clock, and a click shows the panel; Deskstats in the menu of applications opens it too (on GNOME the icon needs"
   echo "the AppIndicator extension, which Ubuntu has)."
 fi
 echo

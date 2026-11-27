@@ -30,65 +30,44 @@ function Invoke-Adb {
     (& $Adb @Arguments 2>&1 | ForEach-Object { "$_" }) -join "`n"
 }
 
-# Shows the link to the phone app as a QR code. The server that was just installed says which squares are dark;
-# they are drawn here with background colours, which every Windows console can do.
-function Show-Qr {
-    $link = "$base/deskstats.apk"
-    $server = Join-Path $env:LOCALAPPDATA 'deskstats\deskstats.exe'
-    $rows = @()
-    if (Test-Path $server) {
-        # The server has no console, so PowerShell would not wait for what it prints: it goes through a file.
-        $file = Join-Path ([IO.Path]::GetTempPath()) ("deskstats-qr-" + [Guid]::NewGuid().ToString('N') + '.txt')
-        try {
-            Start-Process -FilePath $server -ArgumentList '--qr-bits', $link -Wait -NoNewWindow -RedirectStandardOutput $file
-            $rows = @(Get-Content $file | Where-Object { $_ -match '^[01]+$' })
-        } catch {
-            $rows = @()
-        } finally {
-            Remove-Item -Force $file -ErrorAction SilentlyContinue
-        }
-    }
-    Write-Host "Scan the code with the phone's camera (or open the link on the phone), install the app and open it."
-    Write-Host 'With the phone on the same Wi-Fi as this computer, the app finds it: tap it there and allow it here.'
+# Shows the link to the phone app, to open on the phone.
+function Show-Link {
+    Write-Host "Open this link on the phone, install the app and open it:"
     Write-Host ''
-    Write-Host "  $link"
-    if ($rows.Count -gt 0) {
-        $blank = '0' * $rows[0].Length
-        $all = @($blank, $blank, $blank) + $rows + @($blank, $blank, $blank)
-        if ($all.Count % 2) { $all += $blank }
-        # One character shows two squares, one above the other: its upper half has the colour of the text and
-        # its lower half the colour behind it. So the code is as high as it is wide and fits a window of 30 lines.
-        # Some East Asian consoles draw that character two cells wide; the cursor tells, and then every square
-        # is two spaces instead.
-        $half = [string][char]0x2580
-        $narrow = $true
+    Write-Host "  $base/deskstats.apk"
+    Write-Host ''
+    Write-Host 'With the phone on the same Wi-Fi as this computer, the app finds it: tap it there and allow it here.'
+}
+
+# Checks a download against the SHA256SUMS of the release. Releases before it was published have none: then the
+# download is used as it is, with a warning.
+$script:sums = $null
+function Test-Download {
+    param([string]$File, [string]$Name)
+    if ($null -eq $script:sums) {
+        # Only a release without the file (404) is let through unchecked; any other failure stops here.
         try {
-            $at = [Console]::CursorLeft
-            Write-Host $half -NoNewline
-            $narrow = ([Console]::CursorLeft - $at) -ne 2
-            Write-Host "`r  `r" -NoNewline
-        } catch { }
-        if ($narrow) {
-            for ($y = 0; $y -lt $all.Count; $y += 2) {
-                $upper = "000$($all[$y])000"
-                $lower = "000$($all[$y + 1])000"
-                for ($x = 0; $x -lt $upper.Length; $x++) {
-                    $above = if ($upper[$x] -eq '1') { 'Black' } else { 'White' }
-                    $below = if ($lower[$x] -eq '1') { 'Black' } else { 'White' }
-                    Write-Host $half -NoNewline -ForegroundColor $above -BackgroundColor $below
-                }
-                Write-Host ''
-            }
-        } else {
-            foreach ($row in $all) {
-                foreach ($square in "000${row}000".ToCharArray()) {
-                    $colour = if ($square -eq '1') { 'Black' } else { 'White' }
-                    Write-Host '  ' -NoNewline -BackgroundColor $colour
-                }
-                Write-Host ''
-            }
+            $script:sums = (Invoke-WebRequest -UseBasicParsing "$base/SHA256SUMS").Content
+            if ($script:sums -is [byte[]]) { $script:sums = [Text.Encoding]::ASCII.GetString($script:sums) }
+        } catch {
+            $code = $null
+            if ($_.Exception.Response) { $code = [int]$_.Exception.Response.StatusCode }
+            if ($code -ne 404) { throw "setup.ps1: cannot download the checksums of the release ($($_.Exception.Message)); try again" }
+            $script:sums = ''
         }
     }
+    if (-not $script:sums) {
+        Write-Host "setup.ps1: this release has no checksums; $Name is not checked"
+        return
+    }
+    $want = $null
+    foreach ($line in ($script:sums -split "`n")) {
+        $parts = $line.Trim() -split '\s+'
+        if ($parts.Count -eq 2 -and $parts[1].TrimStart('*') -eq $Name) { $want = $parts[0].ToLowerInvariant() }
+    }
+    if (-not $want) { throw "setup.ps1: $Name is not in the checksums of the release" }
+    $got = (Get-FileHash -Algorithm SHA256 -Path $File).Hash.ToLowerInvariant()
+    if ($got -ne $want) { throw "setup.ps1: $Name does not match its checksum (got $got, want $want); not installing it" }
 }
 
 $work = Join-Path ([IO.Path]::GetTempPath()) ("deskstats-" + [Guid]::NewGuid().ToString('N'))
@@ -101,6 +80,7 @@ try {
     } catch {
         throw "setup.ps1: cannot download $base/deskstats-server-windows-x86_64.zip ($($_.Exception.Message)). If the latest release has no Windows build yet, build from source: https://github.com/danijar2000/deskstats#build-from-source"
     }
+    Test-Download $zip 'deskstats-server-windows-x86_64.zip'
     Expand-Archive -Path $zip -DestinationPath $work -Force
     $install = Join-Path $work 'deskstats-server\install.ps1'
     if ($Uninstall) {
@@ -121,7 +101,7 @@ try {
         Write-Host '  winget install Google.PlatformTools'
         Write-Host ''
         Write-Host 'To put the app on the phone without a cable:'
-        Show-Qr
+        Show-Link
         return
     }
     Invoke-Adb $adb @('get-state') | Out-Null
@@ -129,12 +109,13 @@ try {
         Write-Host ''
         Write-Host 'No phone over USB (USB debugging must be on, with one phone connected).'
         Write-Host 'Connect it and run setup.ps1 again, or put the app on the phone without a cable:'
-        Show-Qr
+        Show-Link
         return
     }
     Write-Host '==> Downloading the phone app'
     $apk = Join-Path $work 'deskstats.apk'
     Invoke-WebRequest -UseBasicParsing "$base/deskstats.apk" -OutFile $apk
+    Test-Download $apk 'deskstats.apk'
     Write-Host '==> Installing the app on the phone'
     $out = Invoke-Adb $adb @('install', '-r', $apk)
     if ($LASTEXITCODE -ne 0) {
